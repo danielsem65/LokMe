@@ -2,12 +2,12 @@ package com.lokme.service
 
 import android.app.Notification
 import android.app.PendingIntent
-import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import androidx.lifecycle.LifecycleService
 import com.lokme.LokMeApp
 import com.lokme.MainActivity
 import com.lokme.R
@@ -17,7 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class CommandService : Service() {
+class CommandService : LifecycleService() {
 
     private var wsClient: WsClient? = null
     private var executor: CommandExecutor? = null
@@ -31,17 +31,22 @@ class CommandService : Service() {
             private set
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent): IBinder? {
+        super.onBind(intent)
+        return null
+    }
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
         deviceId = SupabaseClient.getDeviceId(this)
         executor = CommandExecutor(this)
+        executor?.initCamera(this)
         acquireWakeLock()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         startForeground(1, buildNotification())
         connectWebSocket()
         return START_STICKY
@@ -59,7 +64,7 @@ class CommandService : Service() {
                     try {
                         SupabaseClient.updateDeviceOnline(this@CommandService, true)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Online update failed", e.message)
+                        Log.e(TAG, "Online update failed", e)
                     }
                 }
             },
@@ -124,7 +129,7 @@ class CommandService : Service() {
     private fun acquireWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "lokme:service")
-        wakeLock?.acquire(24 * 60 * 60 * 1000L) // 24 hours
+        wakeLock?.acquire(24 * 60 * 60 * 1000L)
     }
 
     override fun onDestroy() {

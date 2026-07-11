@@ -14,45 +14,21 @@ import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class CameraHelper(private val context: Context) {
+class CameraHelper(
+    private val context: Context,
+    private val lifecycleOwner: LifecycleOwner
+) {
 
-    private var imageCaptureBack: ImageCapture? = null
-    private var imageCaptureFront: ImageCapture? = null
     private var cameraProvider: ProcessCameraProvider? = null
     private val latch = CountDownLatch(1)
 
-    fun initialize(lifecycleOwner: LifecycleOwner) {
+    fun initialize() {
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
             cameraProvider = future.get()
-
-            imageCaptureBack = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .build()
-
-            imageCaptureFront = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                .build()
-
-            val backSelector = CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                .build()
-
-            val frontSelector = CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
-                .build()
-
-            try {
-                cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(lifecycleOwner, backSelector, imageCaptureBack)
-                cameraProvider?.bindToLifecycle(lifecycleOwner, frontSelector, imageCaptureFront)
-            } catch (e: Exception) {
-                Log.e("CameraHelper", "Bind failed", e)
-            }
             latch.countDown()
         }, ContextCompat.getMainExecutor(context))
-
-        latch.await(5, TimeUnit.SECONDS)
+        latch.await(10, TimeUnit.SECONDS)
     }
 
     fun capturePhoto(
@@ -60,28 +36,52 @@ class CameraHelper(private val context: Context) {
         onResult: (ByteArray) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val capture = if (useFrontCamera) imageCaptureFront else imageCaptureBack
-        if (capture == null) {
+        val provider = cameraProvider
+        if (provider == null) {
             onError(IllegalStateException("Camera not initialized"))
             return
         }
 
-        capture.takePicture(
-            ContextCompat.getMainExecutor(context),
-            object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    val buffer = image.planes[0].buffer
-                    val bytes = ByteArray(buffer.remaining())
-                    buffer.get(bytes)
-                    image.close()
-                    onResult(bytes)
-                }
+        try {
+            val imageCapture = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
 
-                override fun onError(e: ImageCaptureException) {
-                    onError(e)
+            val selector = CameraSelector.Builder()
+                .requireLensFacing(
+                    if (useFrontCamera) CameraSelector.LENS_FACING_FRONT
+                    else CameraSelector.LENS_FACING_BACK
+                )
+                .build()
+
+            provider.unbindAll()
+            provider.bindToLifecycle(lifecycleOwner, selector, imageCapture)
+
+            imageCapture.takePicture(
+                ContextCompat.getMainExecutor(context),
+                object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        try {
+                            val buffer = image.planes[0].buffer
+                            val bytes = ByteArray(buffer.remaining())
+                            buffer.get(bytes)
+                            image.close()
+                            provider.unbindAll()
+                            onResult(bytes)
+                        } catch (e: Exception) {
+                            onError(e)
+                        }
+                    }
+
+                    override fun onError(e: ImageCaptureException) {
+                        provider.unbindAll()
+                        onError(e)
+                    }
                 }
-            }
-        )
+            )
+        } catch (e: Exception) {
+            onError(e)
+        }
     }
 
     fun generateFileName(): String {
