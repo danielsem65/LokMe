@@ -28,7 +28,7 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log
+          ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tee build-output.log
           EXIT_CODE=${PIPESTATUS[0]}
           echo "Gradle exit code: $EXIT_CODE"
           exit $EXIT_CODE

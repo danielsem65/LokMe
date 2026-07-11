@@ -3,7 +3,6 @@ package com.lokme.network
 import android.content.Context
 import android.provider.Settings
 import com.lokme.LokMeApp
-import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
@@ -18,9 +17,9 @@ import kotlinx.serialization.json.put
 
 object SupabaseClient {
 
-    private var client: SupabaseClient? = null
+    private var client: io.github.jan.supabase.SupabaseClient? = null
 
-    fun getClient(): SupabaseClient {
+    fun getClient(): io.github.jan.supabase.SupabaseClient {
         if (client == null) {
             client = createSupabaseClient(
                 supabaseUrl = LokMeApp.SUPABASE_URL,
