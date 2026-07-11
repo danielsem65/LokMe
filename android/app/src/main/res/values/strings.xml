@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LokMe</string>
+    <string name="device_admin_label">LokMe Device Admin</string>
+    <string name="device_admin_description">Required for remote device lock functionality.</string>
+    <string name="notification_channel_name">LokMe Service</string>
+    <string name="notification_channel_desc">Keeps the monitoring service running</string>
+    <string name="notification_title">LokMe Active</string>
+    <string name="notification_text">Monitoring service is running</string>
+</resources>

