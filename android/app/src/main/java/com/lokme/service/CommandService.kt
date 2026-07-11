@@ -86,13 +86,16 @@ class CommandService : LifecycleService() {
     private fun handleCommand(commandType: String, commandId: String, payload: String) {
         Log.d(TAG, "Received command: $commandType ($commandId)")
 
+        val client = wsClient ?: return
+
         executor?.execute(
             commandType = commandType,
             commandId = commandId,
             payload = payload,
             deviceId = deviceId,
+            wsClient = client,
             onSuccess = { data ->
-                wsClient?.sendResponse(commandId, deviceId, commandType, true, data)
+                client.sendResponse(commandId, deviceId, commandType, true, data)
                 scope.launch {
                     try {
                         SupabaseClient.updateCommandStatus(commandId, "completed")
@@ -100,7 +103,7 @@ class CommandService : LifecycleService() {
                 }
             },
             onError = { error ->
-                wsClient?.sendResponse(commandId, deviceId, commandType, false, error)
+                client.sendResponse(commandId, deviceId, commandType, false, error)
                 scope.launch {
                     try {
                         SupabaseClient.updateCommandStatus(commandId, "failed")

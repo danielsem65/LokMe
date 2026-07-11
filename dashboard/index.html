@@ -60,6 +60,26 @@
             <button class="btn btn-primary" onclick="capturePhoto(true)">Capture Front</button>
           </div>
 
+          <!-- Live Video Stream -->
+          <div class="data-section" id="videoSection">
+            <div class="section-subheader">
+              <h3>Live Video Stream</h3>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" onclick="startVideoStream(false)">Start Back Camera</button>
+                <button class="btn btn-primary btn-sm" onclick="startVideoStream(true)">Start Front Camera</button>
+                <button class="btn btn-danger btn-sm" onclick="stopVideoStream()">Stop Stream</button>
+              </div>
+            </div>
+            <div id="videoContainer" class="video-container">
+              <div id="videoPlaceholder" class="video-placeholder">No active stream</div>
+              <img id="videoFeed" class="video-feed hidden" alt="Live Feed" />
+              <div id="videoInfo" class="video-info hidden">
+                <span id="videoCameraLabel"></span>
+                <span id="videoFpsLabel"></span>
+              </div>
+            </div>
+          </div>
+
           <!-- Map -->
           <div id="map" class="map-container"></div>
           <div id="locationInfo" class="info-bar hidden"></div>

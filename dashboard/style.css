@@ -542,3 +542,41 @@ tr:hover td {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Video Stream */
+.video-container {
+  background: #0a0a0a;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-placeholder {
+  color: #555;
+  font-size: 14px;
+}
+
+.video-feed {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  display: block;
+}
+
+.video-info {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.7);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+  display: flex;
+  gap: 12px;
+}

@@ -28,8 +28,38 @@ wss.on('connection', (ws, req) => {
 
   let deviceId = null;
 
-  ws.on('message', async (data) => {
+  ws.on('message', async (data, isBinary) => {
     try {
+      // Handle binary video frames
+      if (isBinary || Buffer.isBuffer(data)) {
+        const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+        if (buf.length > 2) {
+          const headerLen = (buf[0] << 8) | buf[1];
+          if (headerLen > 0 && headerLen < buf.length - 2) {
+            const headerJson = buf.slice(2, 2 + headerLen).toString('utf8');
+            const header = JSON.parse(headerJson);
+            const jpegData = buf.slice(2 + headerLen);
+
+            if (header.type === 'video_frame' && header.device_id) {
+              // Relay to dashboard clients
+              const frameMsg = JSON.stringify({
+                type: 'video_frame',
+                device_id: header.device_id,
+                camera: header.camera || 'back'
+              });
+              // Send as text header + binary jpeg
+              dashboardClients.forEach(dashWs => {
+                if (dashWs.readyState === 1) {
+                  dashWs.send(frameMsg);
+                  dashWs.send(jpegData);
+                }
+              });
+            }
+          }
+        }
+        return;
+      }
+
       const msg = JSON.parse(data.toString());
 
       switch (msg.type) {

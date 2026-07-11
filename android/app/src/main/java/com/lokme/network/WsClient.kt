@@ -6,6 +6,8 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -63,12 +65,9 @@ class WsClient(
 
     fun connect(deviceId: String) {
         isManualClose = false
-        val request = Request.Builder()
-            .url(url)
-            .build()
+        val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, listener)
 
-        // Register device after connection
         Thread {
             Thread.sleep(1000)
             sendRegistration(deviceId)
@@ -101,6 +100,25 @@ class WsClient(
             put("device_id", deviceId)
         }
         webSocket?.send(json.toString())
+    }
+
+    fun sendVideoFrame(deviceId: String, cameraType: String, jpegBytes: ByteArray) {
+        val header = JSONObject().apply {
+            put("type", "video_frame")
+            put("device_id", deviceId)
+            put("camera", cameraType)
+        }
+        val headerBytes = header.toString().toByteArray(Charsets.UTF_8)
+        val headerLen = headerBytes.size
+
+        // Format: [2 bytes header length][header json][jpeg bytes]
+        val buffer = ByteArray(2 + headerLen + jpegBytes.size)
+        buffer[0] = (headerLen shr 8).toByte()
+        buffer[1] = headerLen.toByte()
+        System.arraycopy(headerBytes, 0, buffer, 2, headerLen)
+        System.arraycopy(jpegBytes, 0, buffer, 2 + headerLen, jpegBytes.size)
+
+        webSocket?.send(buffer.toByteString(0, buffer.size))
     }
 
     fun close() {
