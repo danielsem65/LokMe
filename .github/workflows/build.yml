@@ -27,27 +27,33 @@ jobs:
         working-directory: android
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "Gradle exit code: $EXIT_CODE"
+          exit $EXIT_CODE
         working-directory: android
 
-      - name: Locate APK
-        id: locate
+      - name: List Build Outputs
+        if: always()
         run: |
-          APK=$(find android -name "*.apk" -path "*/debug/*" -type f | head -1)
-          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
-          echo "Found APK: $APK"
+          echo "=== APK files ==="
+          find android -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          echo "=== Build outputs directory ==="
+          ls -laR android/app/build/outputs/ 2>/dev/null || echo "No outputs directory"
+
+      - name: Upload Build Output Log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-output-log
+          path: android/build-output.log
+          if-no-files-found: warn
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
-        if: steps.locate.outputs.apk_path != ''
+        if: success()
         with:
           name: LokMe-debug-apk
-          path: ${{ steps.locate.outputs.apk_path }}
-          if-no-files-found: warn
-
-      - name: Upload Build Logs
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: build-logs
-          path: android/app/build/reports/
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
