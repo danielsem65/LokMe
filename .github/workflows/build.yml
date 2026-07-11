@@ -20,32 +20,32 @@ jobs:
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Gradle Wrapper
-        run: gradle wrapper
-        working-directory: ./android
+        run: gradle wrapper --gradle-version 8.7
+        working-directory: android
 
-      - name: Grant execute permission for gradlew
+      - name: Make gradlew executable
         run: chmod +x gradlew
-        working-directory: ./android
+        working-directory: android
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
-        working-directory: ./android
-
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
-        working-directory: ./android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        working-directory: android
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: LokMe-debug
+          name: LokMe-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
 
-      - name: Upload Release APK
+      - name: Upload Build Logs
         uses: actions/upload-artifact@v4
+        if: failure()
         with:
-          name: LokMe-release
-          path: android/app/build/outputs/apk/release/*.apk
+          name: build-logs
+          path: |
+            android/app/build/reports/
+            android/build/
