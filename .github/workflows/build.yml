@@ -31,15 +31,20 @@ jobs:
         working-directory: android
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
         working-directory: android
+
+      - name: Find APK
+        run: find android/app/build/outputs -name "*.apk" -type f
+        if: always()
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: LokMe-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
 
       - name: Upload Build Logs
         uses: actions/upload-artifact@v4
@@ -49,4 +54,3 @@ jobs:
           path: |
             android/app/build/reports/
             android/build/
-            android/build-output.log
