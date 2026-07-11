@@ -73,3 +73,9 @@ dependencies {
     // WebSocket
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.browser:browser:1.7.0")
+    }
+}
