@@ -257,6 +257,152 @@ app.get('/api/device/:deviceId/photos', async (req, res) => {
   }
 });
 
+// ===== DELETE ENDPOINTS =====
+
+// Delete a photo (storage + db)
+app.delete('/api/photos/:photoId', async (req, res) => {
+  try {
+    const { data: photo, error: fetchErr } = await supabase
+      .from('photos')
+      .select('*')
+      .eq('id', req.params.photoId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
+    // Extract storage path from URL
+    const urlParts = photo.storage_url.split('/storage/v1/object/public/photos/');
+    if (urlParts.length > 1) {
+      await supabase.storage.from('photos').remove([urlParts[1]]);
+    }
+
+    await supabase.from('photos').delete().eq('id', req.params.photoId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete all photos for a device
+app.delete('/api/device/:deviceId/photos', async (req, res) => {
+  try {
+    const { data: photos } = await supabase
+      .from('photos')
+      .select('storage_url')
+      .eq('device_id', req.params.deviceId);
+
+    if (photos && photos.length > 0) {
+      const paths = photos.map(p => {
+        const parts = p.storage_url.split('/storage/v1/object/public/photos/');
+        return parts.length > 1 ? parts[1] : null;
+      }).filter(Boolean);
+
+      if (paths.length > 0) {
+        await supabase.storage.from('photos').remove(paths);
+      }
+    }
+
+    await supabase.from('photos').delete().eq('device_id', req.params.deviceId);
+    res.json({ success: true, deleted: photos?.length || 0 });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete a call log entry
+app.delete('/api/calllogs/:logId', async (req, res) => {
+  try {
+    await supabase.from('call_logs').delete().eq('id', req.params.logId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete all call logs for a device
+app.delete('/api/device/:deviceId/calllogs', async (req, res) => {
+  try {
+    const { count } = await supabase
+      .from('call_logs')
+      .delete()
+      .eq('device_id', req.params.deviceId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete all locations for a device
+app.delete('/api/device/:deviceId/locations', async (req, res) => {
+  try {
+    await supabase.from('locations').delete().eq('device_id', req.params.deviceId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete all commands for a device
+app.delete('/api/device/:deviceId/commands', async (req, res) => {
+  try {
+    await supabase.from('commands').delete().eq('device_id', req.params.deviceId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete a device and ALL its data
+app.delete('/api/device/:deviceId', async (req, res) => {
+  try {
+    const id = req.params.deviceId;
+
+    // Delete photos from storage first
+    const { data: photos } = await supabase.from('photos').select('storage_url').eq('device_id', id);
+    if (photos && photos.length > 0) {
+      const paths = photos.map(p => {
+        const parts = p.storage_url.split('/storage/v1/object/public/photos/');
+        return parts.length > 1 ? parts[1] : null;
+      }).filter(Boolean);
+      if (paths.length > 0) await supabase.storage.from('photos').remove(paths);
+    }
+
+    // Delete all related data
+    await supabase.from('photos').delete().eq('device_id', id);
+    await supabase.from('call_logs').delete().eq('device_id', id);
+    await supabase.from('locations').delete().eq('device_id', id);
+    await supabase.from('commands').delete().eq('device_id', id);
+    await supabase.from('devices').delete().eq('id', id);
+
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get storage usage stats
+app.get('/api/stats', async (req, res) => {
+  try {
+    const [devices, photos, callLogs, locations, commands] = await Promise.all([
+      supabase.from('devices').select('id', { count: 'exact', head: true }),
+      supabase.from('photos').select('id', { count: 'exact', head: true }),
+      supabase.from('call_logs').select('id', { count: 'exact', head: true }),
+      supabase.from('locations').select('id', { count: 'exact', head: true }),
+      supabase.from('commands').select('id', { count: 'exact', head: true }),
+    ]);
+
+    res.json({
+      devices: devices.count || 0,
+      photos: photos.count || 0,
+      call_logs: callLogs.count || 0,
+      locations: locations.count || 0,
+      commands: commands.count || 0
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({

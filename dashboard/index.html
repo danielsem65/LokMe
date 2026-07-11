@@ -20,7 +20,9 @@
         <button class="nav-btn" data-section="commands">Commands</button>
         <button class="nav-btn" data-section="calllogs">Call Logs</button>
         <button class="nav-btn" data-section="photos">Photos</button>
+        <button class="nav-btn" data-section="storage">Storage</button>
       </nav>
+      <div class="sidebar-stats" id="sidebarStats"></div>
       <div class="server-status">
         <span id="wsStatus" class="status-dot disconnected"></span>
         <span id="wsLabel">Disconnected</span>
@@ -41,7 +43,11 @@
         <div id="deviceDetail" class="hidden">
           <div class="section-header">
             <h2 id="detailTitle">Device</h2>
-            <button class="btn btn-secondary" onclick="showDeviceList()">Back</button>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-danger" onclick="deleteAllDeviceData()">Delete All Data</button>
+              <button class="btn btn-danger" onclick="deleteDevice()">Delete Device</button>
+              <button class="btn btn-secondary" onclick="showDeviceList()">Back</button>
+            </div>
           </div>
 
           <!-- Command Buttons -->
@@ -58,9 +64,30 @@
           <div id="map" class="map-container"></div>
           <div id="locationInfo" class="info-bar hidden"></div>
 
-          <!-- Command History -->
-          <h3>Command History</h3>
-          <div id="commandHistory" class="table-container"></div>
+          <!-- Device Data Management -->
+          <div class="data-section">
+            <div class="section-subheader">
+              <h3>Call Logs</h3>
+              <button class="btn btn-danger btn-sm" onclick="deleteDeviceCallLogs()">Clear All</button>
+            </div>
+            <div id="commandHistory" class="table-container"></div>
+          </div>
+
+          <div class="data-section">
+            <div class="section-subheader">
+              <h3>Device Photos</h3>
+              <button class="btn btn-danger btn-sm" onclick="deleteDevicePhotos()">Clear All</button>
+            </div>
+            <div id="devicePhotos" class="photo-grid"></div>
+          </div>
+
+          <div class="data-section">
+            <div class="section-subheader">
+              <h3>Location History</h3>
+              <button class="btn btn-danger btn-sm" onclick="deleteDeviceLocations()">Clear All</button>
+            </div>
+            <div id="deviceLocations" class="table-container"></div>
+          </div>
         </div>
       </section>
 
@@ -68,7 +95,10 @@
       <section id="sec-commands" class="section">
         <div class="section-header">
           <h1>All Commands</h1>
-          <button class="btn btn-primary" onclick="refreshAllCommands()">Refresh</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-danger" onclick="clearAllCommands()">Clear All</button>
+            <button class="btn btn-primary" onclick="refreshAllCommands()">Refresh</button>
+          </div>
         </div>
         <div id="allCommands" class="table-container"></div>
       </section>
@@ -77,7 +107,10 @@
       <section id="sec-calllogs" class="section">
         <div class="section-header">
           <h1>Call Logs</h1>
-          <button class="btn btn-primary" onclick="refreshCallLogs()">Refresh</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-danger" onclick="clearAllCallLogs()">Clear All</button>
+            <button class="btn btn-primary" onclick="refreshCallLogs()">Refresh</button>
+          </div>
         </div>
         <div id="callLogsList" class="table-container"></div>
       </section>
@@ -86,10 +119,39 @@
       <section id="sec-photos" class="section">
         <div class="section-header">
           <h1>Photos</h1>
-          <button class="btn btn-primary" onclick="refreshPhotos()">Refresh</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-danger" onclick="clearAllPhotos()">Delete All Photos</button>
+            <button class="btn btn-primary" onclick="refreshPhotos()">Refresh</button>
+          </div>
         </div>
         <div id="photoGrid" class="photo-grid"></div>
       </section>
+
+      <!-- Storage Section -->
+      <section id="sec-storage" class="section">
+        <div class="section-header">
+          <h1>Storage & Data Management</h1>
+          <button class="btn btn-primary" onclick="refreshStats()">Refresh</button>
+        </div>
+        <div id="storageStats" class="stats-grid"></div>
+        <div class="danger-zone">
+          <h3>Danger Zone</h3>
+          <p>Permanently delete all data from the database. This cannot be undone.</p>
+          <button class="btn btn-danger" onclick="nukeAllData()">Delete ALL Data</button>
+        </div>
+      </section>
+
+      <!-- Confirm Modal -->
+      <div id="confirmModal" class="modal hidden">
+        <div class="modal-content">
+          <h3 id="confirmTitle">Are you sure?</h3>
+          <p id="confirmMessage" style="color:#aaa;margin-bottom:16px"></p>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+            <button class="btn btn-danger" id="confirmBtn" onclick="">Delete</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Dialog Modal -->
       <div id="dialogModal" class="modal hidden">

@@ -392,3 +392,153 @@ tr:hover td {
   padding: 40px;
   font-size: 14px;
 }
+
+/* Small buttons */
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* Section subheader */
+.section-subheader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0 10px;
+}
+
+.section-subheader h3 {
+  font-size: 16px;
+  color: #ccc;
+}
+
+.data-section {
+  margin-bottom: 24px;
+}
+
+/* Sidebar stats */
+.sidebar-stats {
+  padding: 12px 20px;
+  font-size: 11px;
+  color: #666;
+  border-top: 1px solid #2a2a2a;
+}
+
+.sidebar-stats .stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+}
+
+.stat-card .stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #4CAF50;
+}
+
+.stat-card .stat-label {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Danger zone */
+.danger-zone {
+  background: #1a0a0a;
+  border: 1px solid #3a1a1a;
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.danger-zone h3 {
+  color: #f44336;
+  margin-bottom: 8px;
+}
+
+.danger-zone p {
+  color: #888;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* Delete button in photo card */
+.photo-card {
+  position: relative;
+}
+
+.photo-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(244,67,54,0.9);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.photo-card:hover .photo-delete {
+  opacity: 1;
+}
+
+/* Row delete button */
+.row-delete {
+  background: none;
+  border: none;
+  color: #f44336;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.row-delete:hover {
+  background: rgba(244,67,54,0.1);
+}
+
+/* Loading spinner */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #888;
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #333;
+  border-top-color: #4CAF50;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
