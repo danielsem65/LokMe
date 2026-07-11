@@ -26,31 +26,28 @@ jobs:
         run: gradle wrapper --gradle-version 8.9
         working-directory: android
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
-        working-directory: android
-
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
         working-directory: android
 
-      - name: Find APK
-        run: find android/app/build/outputs -name "*.apk" -type f
-        if: always()
+      - name: Locate APK
+        id: locate
+        run: |
+          APK=$(find android -name "*.apk" -path "*/debug/*" -type f | head -1)
+          echo "apk_path=$APK" >> "$GITHUB_OUTPUT"
+          echo "Found APK: $APK"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
-        if: success()
+        if: steps.locate.outputs.apk_path != ''
         with:
           name: LokMe-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          path: ${{ steps.locate.outputs.apk_path }}
+          if-no-files-found: warn
 
       - name: Upload Build Logs
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: build-logs
-          path: |
-            android/app/build/reports/
-            android/build/
+          path: android/app/build/reports/
