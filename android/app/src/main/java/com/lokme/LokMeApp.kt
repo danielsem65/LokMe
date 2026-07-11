@@ -11,10 +11,10 @@ class LokMeApp : Application() {
         const val CHANNEL_ID = "lokme_service"
 
         // ========== FILL IN YOUR DETAILS ==========
-        const val SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
-        const val SUPABASE_KEY = "YOUR_ANON_KEY"
-        const val SERVER_URL = "wss://your-server.onrender.com/ws"
-        const val SERVER_API = "https://your-server.onrender.com"
+        const val SUPABASE_URL = "https://qiykuhhrgvtwsltcemwp.supabase.co"
+        const val SUPABASE_KEY = "sb_publishable_YbksF7f6IcJH40KDRTrSYQ_rnAJmXRl"
+        const val SERVER_URL = "wss://lokme-server.onrender.com/ws"
+        const val SERVER_API = "https://lokme-server.onrender.com"
         // ===========================================
     }
 
