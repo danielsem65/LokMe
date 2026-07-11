@@ -23,7 +23,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.7
+        run: gradle wrapper --gradle-version 8.9
         working-directory: android
 
       - name: Make gradlew executable
@@ -31,7 +31,7 @@ jobs:
         working-directory: android
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log
         working-directory: android
 
       - name: Upload Debug APK
@@ -49,3 +49,4 @@ jobs:
           path: |
             android/app/build/reports/
             android/build/
+            android/build-output.log

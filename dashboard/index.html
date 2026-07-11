@@ -9,11 +9,19 @@
 </head>
 <body>
   <div class="app">
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- Hamburger -->
+    <button class="hamburger" id="hamburger" onclick="toggleSidebar()">&#9776;</button>
+
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="logo">
-        <h2>LokMe</h2>
-        <span>Admin Panel</span>
+        <div class="logo-text">
+          <h2>LokMe</h2>
+          <span>Admin Panel</span>
+        </div>
       </div>
       <nav>
         <button class="nav-btn active" data-section="devices">Devices</button>

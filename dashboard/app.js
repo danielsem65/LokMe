@@ -16,6 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
 });
 
+// ===== Sidebar Toggle (Mobile) =====
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('visible');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
+
 // ===== Navigation =====
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -29,6 +40,8 @@ function initNav() {
       if (btn.dataset.section === 'calllogs') refreshCallLogs();
       if (btn.dataset.section === 'photos') refreshPhotos();
       if (btn.dataset.section === 'commands') refreshAllCommands();
+
+      closeSidebar();
     });
   });
 }
@@ -166,6 +179,8 @@ function selectDevice(deviceId) {
   loadDeviceLocation(deviceId);
   loadDevicePhotos(deviceId);
   loadDeviceLocations(deviceId);
+
+  closeSidebar();
 }
 
 function showDeviceList() {

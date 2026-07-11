@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.lokme"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.lokme"
@@ -74,8 +74,3 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 
-configurations.all {
-    resolutionStrategy {
-        force("androidx.browser:browser:1.7.0")
-    }
-}

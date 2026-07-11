@@ -124,7 +124,7 @@ class VideoStreamHelper(
 
             outputStream.toByteArray()
         } catch (e: Exception) {
-            Log.e("VideoStream", "Frame conversion error", e.message)
+            Log.e("VideoStream", "Frame conversion error: ${e.message}")
             null
         }
     }
