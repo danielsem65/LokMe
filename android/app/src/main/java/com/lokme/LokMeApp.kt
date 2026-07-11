@@ -13,8 +13,8 @@ class LokMeApp : Application() {
         // ========== FILL IN YOUR DETAILS ==========
         const val SUPABASE_URL = "https://qiykuhhrgvtwsltcemwp.supabase.co"
         const val SUPABASE_KEY = "sb_publishable_YbksF7f6IcJH40KDRTrSYQ_rnAJmXRl"
-        const val SERVER_URL = "wss://lokme-server.onrender.com/ws"
-        const val SERVER_API = "https://lokme-server.onrender.com"
+        const val SERVER_URL = "wss://lokme-sever.onrender.com/ws"
+        const val SERVER_API = "https://lokme-sever.onrender.com"
         // ===========================================
     }
 
