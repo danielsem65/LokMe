@@ -41,6 +41,12 @@ val supabaseVersion = "3.6.0"
 val ktorVersion = "3.0.1"
 val cameraxVersion = "1.4.1"
 
+configurations.all {
+    resolutionStrategy {
+        force("androidx.browser:browser:1.7.0")
+    }
+}
+
 dependencies {
     // AndroidX
     implementation("androidx.core:core-ktx:1.12.0")
@@ -72,8 +78,5 @@ dependencies {
 
     // WebSocket
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Force older browser version to avoid compileSdk 36 requirement
-    implementation("androidx.browser:browser:1.7.0")
 }
 
