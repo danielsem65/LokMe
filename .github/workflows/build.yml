@@ -22,6 +22,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Accept SDK Licenses
+        run: |
+          mkdir -p "$ANDROID_HOME/licenses"
+          echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license"
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          echo -e "\n859f317696f67ef3d7f30a50a5560e7834b43903" > "$ANDROID_HOME/licenses/android-sdk-arm-dbt-license"
+          echo "Licenses written to $ANDROID_HOME/licenses"
+
       - name: Generate Gradle Wrapper
         run: gradle wrapper --gradle-version 8.9
         working-directory: android
@@ -30,31 +39,17 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
         working-directory: android
 
-      - name: Find and Upload APK
+      - name: Find APK
         id: find-apk
         if: always()
+        working-directory: android
         run: |
-          echo "## Build Outputs" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "=== All APK files ===" >> $GITHUB_STEP_SUMMARY
-          find . -name "*.apk" -type f 2>> $GITHUB_STEP_SUMMARY >> $GITHUB_STEP_SUMMARY || echo "None" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "=== outputs directory ===" >> $GITHUB_STEP_SUMMARY
-          ls -laR android/app/build/outputs/ 2>> $GITHUB_STEP_SUMMARY >> $GITHUB_STEP_SUMMARY || echo "No outputs dir" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-          APK=$(find . -name "*.apk" -path "*/debug/*" -type f | head -1)
+          APK=$(find . -name "*.apk" -type f 2>/dev/null | head -1)
           if [ -n "$APK" ]; then
             echo "Found APK: $APK"
             echo "apk_path=$APK" >> $GITHUB_OUTPUT
           else
-            APK=$(find . -name "*.apk" -type f | head -1)
-            if [ -n "$APK" ]; then
-              echo "Found APK at: $APK"
-              echo "apk_path=$APK" >> $GITHUB_OUTPUT
-            else
-              echo "NO APK FOUND"
-            fi
+            echo "NO APK FOUND"
           fi
 
       - name: Upload Debug APK
@@ -62,5 +57,5 @@ jobs:
         if: steps.find-apk.outputs.apk_path != ''
         with:
           name: LokMe-debug-apk
-          path: ${{ steps.find-apk.outputs.apk_path }}
+          path: android/${{ steps.find-apk.outputs.apk_path }}
           if-no-files-found: error
