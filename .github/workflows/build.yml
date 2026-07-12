@@ -27,21 +27,8 @@ jobs:
         working-directory: android
 
       - name: Build Debug APK
-        run: |
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.log
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "Gradle exit code: $EXIT_CODE"
-          exit $EXIT_CODE
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
         working-directory: android
-
-      - name: Show Build Error
-        if: failure()
-        working-directory: android
-        run: |
-          echo "=== LAST 100 LINES OF BUILD LOG ==="
-          tail -100 build-output.log
-          echo "=== GREP FOR ERRORS ==="
-          grep -i "error\|FAILED\|exception" build-output.log | head -30
 
       - name: List Build Outputs
         if: always()
@@ -50,14 +37,6 @@ jobs:
           find android -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
           echo "=== Build outputs directory ==="
           ls -laR android/app/build/outputs/ 2>/dev/null || echo "No outputs directory"
-
-      - name: Upload Build Output Log
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-output-log
-          path: android/build-output.log
-          if-no-files-found: warn
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
