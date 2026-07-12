@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.lokme"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.lokme"
@@ -65,8 +65,8 @@ dependencies {
     // Ktor (required by Supabase)
     implementation("io.ktor:ktor-client-android:$ktorVersion")
 
-    // KotlinX Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
+    // KotlinX Serialization (version managed by Supabase BOM)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     // CameraX
     implementation("androidx.camera:camera-core:$cameraxVersion")
