@@ -27,8 +27,17 @@ jobs:
         working-directory: android
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
         working-directory: android
+
+      - name: Dump build error to summary
+        if: failure()
+        working-directory: android
+        run: |
+          echo "## Build Error Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -200 build.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No build log found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: List Build Outputs
         if: always()
