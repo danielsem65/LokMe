@@ -72,5 +72,8 @@ dependencies {
 
     // WebSocket
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Force older browser version to avoid compileSdk 36 requirement
+    implementation("androidx.browser:browser:1.7.0")
 }
 

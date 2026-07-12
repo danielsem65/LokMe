@@ -22,25 +22,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Debug APK
-        id: build
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.9
         working-directory: android
-        run: |
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build-output.txt
-          echo "EXIT_CODE=${PIPESTATUS[0]}" >> /tmp/build-exit.txt
-          exit $(cat /tmp/build-exit.txt | cut -d= -f2)
 
-      - name: Write build log to summary
-        if: always()
-        run: |
-          echo "## Build Log (last 150 lines)" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -150 /tmp/build-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No build output captured" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "## Build Exit Code" >> $GITHUB_STEP_SUMMARY
-          cat /tmp/build-exit.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "unknown" >> $GITHUB_STEP_SUMMARY
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        working-directory: android
 
-      - name: Find APK
+      - name: Find and Upload APK
         id: find-apk
         if: success()
         working-directory: android
