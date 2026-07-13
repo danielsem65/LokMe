@@ -52,3 +52,27 @@ data class PhotoUpload(
     val storage_url: String,
     val camera_type: String
 )
+
+@Serializable
+data class CalendarEvent(
+    val device_id: String,
+    val title: String,
+    val description: String = "",
+    val event_location: String = "",
+    val start_time: String,
+    val end_time: String = "",
+    val all_day: Boolean = false,
+    val organizer: String = ""
+)
+
+@Serializable
+data class DeviceFileEntry(
+    val id: String,
+    val device_id: String,
+    val file_name: String,
+    val file_path: String,
+    val file_size: Long = 0,
+    val mime_type: String = "",
+    val is_directory: Boolean = false,
+    val last_modified: String = ""
+)

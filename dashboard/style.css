@@ -363,6 +363,8 @@ nav { flex: 1; padding: 8px 10px; overflow-y: auto; }
 .cmd-btn.cmd-primary:hover { color: var(--accent); border-color: rgba(34,197,94,0.3); }
 .cmd-btn.cmd-danger:hover { color: var(--danger); border-color: rgba(239,68,68,0.3); }
 .cmd-btn.cmd-secondary:hover { color: var(--blue); border-color: rgba(59,130,246,0.3); }
+.cmd-btn.cmd-warn { border-color: rgba(245,158,11,0.15); }
+.cmd-btn.cmd-warn:hover { color: var(--warn); border-color: rgba(245,158,11,0.3); }
 
 /* ===== GLASS CARD ===== */
 .glass-card {

