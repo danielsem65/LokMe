@@ -616,10 +616,27 @@ async function clearAllPhotos() { showConfirm('Delete All Photos', 'Delete all p
 async function nukeAllData() { showConfirm('DELETE EVERYTHING', 'This permanently deletes ALL data. Cannot be undone!', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' }); showToast('All data deleted'); refreshDevices(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
 
 // ===== Notifications =====
+let seenNotifIds = new Set();
+
 function handleLiveNotification(msg) {
   showToast(`${msg.app_name || ''} - ${msg.sender || ''}: ${(msg.message || '').substring(0, 80)}`);
   showNotifToast(msg);
-  if (document.getElementById('sec-notifications')?.classList.contains('active')) refreshNotifications();
+  // prepend to the table directly instead of re-fetching REST
+  const container = document.getElementById('notifList');
+  if (document.getElementById('sec-notifications')?.classList.contains('active') && container) {
+    const cls = getNotifBadgeClass(msg.app_name || msg.app_package || '');
+    const key = `${msg.device_id}|${msg.sender}|${msg.message}|${msg.timestamp}`;
+    if (seenNotifIds.has(key)) return;
+    seenNotifIds.add(key);
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${msg.device_name || msg.device_id?.substring(0,12) || '?'}</td><td><span class="notif-app-badge ${cls}">${msg.app_name || msg.app_package || '?'}</span></td><td>${escapeHtml(msg.sender || '-')}</td><td><div class="notif-message">${escapeHtml((msg.message || '').substring(0, 200))}</div></td><td style="white-space:nowrap">${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'now'}</td><td></td></tr>`;
+    const tbody = container.querySelector('tbody');
+    if (tbody) {
+      tbody.prepend(row);
+      // cap table at 200 rows
+      while (tbody.children.length > 200) tbody.lastElementChild.remove();
+    }
+  }
   animateCounter(document.getElementById('statNotifs'), parseInt(document.getElementById('statNotifs').textContent) + 1);
 }
 
@@ -641,6 +658,7 @@ function showNotifToast(msg) {
 }
 
 async function refreshNotifications() {
+  seenNotifIds.clear();
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
   let all = [];
   for (const d of devices) {
@@ -653,6 +671,8 @@ async function refreshNotifications() {
   container.innerHTML = `<table><thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead><tbody>
     ${all.slice(0, 200).map(n => {
       const cls = getNotifBadgeClass(n.app_name || n.app_package);
+      const key = `${n.device_id}|${n.sender}|${n.message}|${n.timestamp}`;
+      seenNotifIds.add(key);
       return `<tr><td>${n.device_name}</td><td><span class="notif-app-badge ${cls}">${n.app_name || n.app_package}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td><td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td></tr>`;
     }).join('')}
   </tbody></table>`;

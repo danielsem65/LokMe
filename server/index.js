@@ -167,25 +167,17 @@ wss.on('connection', (ws, req) => {
 
         case 'notification':
           try {
-            await supabase.from('notifications').insert({
-              device_id: msg.device_id,
-              app_package: msg.app_package,
-              app_name: msg.app_name,
-              sender: msg.sender,
-              message: msg.message,
-              timestamp: msg.timestamp
-            });
-
             broadcastToDashboard({
               type: 'notification',
               device_id: msg.device_id,
+              device_name: msg.device_name || msg.device_id.substring(0,12),
               app_name: msg.app_name,
               sender: msg.sender,
               message: msg.message,
               timestamp: msg.timestamp
             });
           } catch (e) {
-            console.error('Notification insert error:', e.message);
+            console.error('Notification broadcast error:', e.message);
           }
           break;
 
