@@ -130,7 +130,7 @@ class CommandService : LifecycleService() {
                 Thread.sleep(2000)
                 sendBatteryStatus()
                 while (isRunning && !Thread.currentThread().isInterrupted) {
-                    Thread.sleep(30_000)
+                    Thread.sleep(10_000)
                     sendBatteryStatus()
                 }
             } catch (_: InterruptedException) { }

