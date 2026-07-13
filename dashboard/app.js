@@ -402,6 +402,8 @@ function selectDevice(deviceId) {
   loadDeviceLocations(deviceId);
   loadDeviceNotifications(deviceId);
   closeSidebar();
+  // show cached battery if available
+  if (deviceBatteryCache[deviceId]) updateBatteryUI(deviceBatteryCache[deviceId]);
   // fetch actual name
   fetch(`${API_BASE}/api/devices`).then(r=>r.json()).then(devices=>{
     const d = devices.find(x => x.id === deviceId);
@@ -734,17 +736,24 @@ async function loadDeviceNotifications(deviceId) {
 }
 async function deleteDeviceNotifications() { if (!selectedDevice) return; try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }
 
-// ===== Battery (auto-sent by device via WS every 30s) =====
+// ===== Battery (auto-sent by device via WS every 10s) =====
+const deviceBatteryCache = {};
 function handleBatteryStatus(msg) {
+  if (!msg.device_id) return;
+  deviceBatteryCache[msg.device_id] = msg;
   if (msg.device_id === selectedDevice) {
-    const level = document.getElementById('batteryLevel');
-    if (level) {
-      document.getElementById('batteryLevel').textContent = msg.level + '%';
-      document.getElementById('batteryCharging').textContent = msg.is_charging ? 'Charging' : 'Not Charging';
-      document.getElementById('batteryHealth').textContent = msg.health || 'unknown';
-      document.getElementById('batteryTemp').textContent = msg.temperature ? msg.temperature + '°C' : '-';
-      document.getElementById('batteryTech').textContent = msg.technology || '-';
-    }
+    updateBatteryUI(msg);
+  }
+}
+
+function updateBatteryUI(msg) {
+  const level = document.getElementById('batteryLevel');
+  if (level) {
+    document.getElementById('batteryLevel').textContent = msg.level + '%';
+    document.getElementById('batteryCharging').textContent = msg.is_charging ? 'Charging' : 'Not Charging';
+    document.getElementById('batteryHealth').textContent = msg.health || 'unknown';
+    document.getElementById('batteryTemp').textContent = msg.temperature ? msg.temperature + '°C' : '-';
+    document.getElementById('batteryTech').textContent = msg.technology || '-';
   }
 }
 
