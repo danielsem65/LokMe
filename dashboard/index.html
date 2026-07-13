@@ -105,6 +105,10 @@
             <div>
               <h2 id="detailTitle">Device</h2>
               <p class="subtitle" id="detailSub">Connected · Last seen now</p>
+              <p class="subtitle" id="detailBattery" style="margin-top:4px;display:none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
+                <span id="detailBatteryText">--</span>
+              </p>
             </div>
             <div class="header-actions">
               <button class="btn btn-outline btn-sm" onclick="showDeviceList()">
@@ -240,22 +244,7 @@
             <div id="deviceNotifications" class="table-container"></div>
           </div>
 
-          <!-- Battery Status (auto-sent by device) -->
-          <div class="glass-card">
-            <div class="card-header">
-              <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
-                Battery Status <span style="font-size:11px;color:var(--text-ter)">(auto-refreshes every 30s)</span>
-              </h3>
-            </div>
-            <div class="stats-row">
-              <div class="stat-pill"><span class="stat-pill-value" id="batteryLevel">--</span><span>Level</span></div>
-              <div class="stat-pill"><span class="stat-pill-value" id="batteryCharging">--</span><span>Status</span></div>
-              <div class="stat-pill"><span class="stat-pill-value" id="batteryHealth">--</span><span>Health</span></div>
-              <div class="stat-pill"><span class="stat-pill-value" id="batteryTemp">--</span><span>Temp</span></div>
-              <div class="stat-pill"><span class="stat-pill-value" id="batteryTech">--</span><span>Tech</span></div>
-            </div>
-          </div>
+
 
           <!-- Calendar Events open in popup -->
           <!-- File Browser open in popup -->

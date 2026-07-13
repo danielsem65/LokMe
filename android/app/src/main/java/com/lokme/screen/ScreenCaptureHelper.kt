@@ -99,8 +99,16 @@ object ScreenCaptureHelper {
         Log.d(TAG, "VirtualDisplay created: ${width}x${height}")
     }
 
-    fun captureScreen(): ByteArray? {
+    fun captureScreen(context: Context? = null): ByteArray? {
         try {
+            // ensure virtual display is alive
+            if (mediaProjection == null && context != null) {
+                setupProjection(context)
+            }
+            if (mediaProjection != null && context != null) {
+                ensureVirtualDisplay(context)
+            }
+
             val reader = imageReader ?: return null
 
             val image = reader.acquireLatestImage() ?: return null

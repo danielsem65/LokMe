@@ -533,7 +533,7 @@ class CommandExecutor(private val context: Context) {
 
     private fun captureScreen(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         try {
-            val bytes = ScreenCaptureHelper.captureScreen()
+            val bytes = ScreenCaptureHelper.captureScreen(context)
             if (bytes == null) {
                 onError("Screen capture failed (grant MediaProjection permission on device)")
                 return
