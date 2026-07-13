@@ -377,7 +377,11 @@ class CommandExecutor(private val context: Context) {
                     put("modified", f.last_modified)
                 })
             }
-            onSuccess(jsonArr.toString())
+            val result = JSONObject().apply {
+                put("current_path", dir.absolutePath)
+                put("files", jsonArr)
+            }
+            onSuccess(result.toString())
         } catch (e: Exception) {
             onError(e.message ?: "List files failed")
         }

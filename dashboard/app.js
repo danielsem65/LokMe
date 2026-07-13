@@ -765,11 +765,35 @@ function handleFilesResponse(msg) {
   const content = document.getElementById('filesPopupContent');
   if (!content) return;
   try {
-    const files = JSON.parse(msg.data || '[]');
-    if (files.length === 0) { content.innerHTML = '<div class="insight-empty">No files found</div>'; return; }
-    content.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>
-      ${files.map(f => `<tr><td>${f.is_dir ? '📁 ' : '📄 '}${escapeHtml(f.name || '')}</td><td>${f.is_dir ? '-' : formatFileSize(f.size || 0)}</td><td>${f.mime || '-'}</td><td>${!f.is_dir && f.size > 0 && f.size <= 20971520 ? `<button class="btn btn-glass btn-sm" onclick="downloadFile('${escapeHtml(f.path)}')">DL</button>` : f.is_dir ? `<button class="btn btn-glass btn-sm" onclick="browseDir('${escapeHtml(f.path)}')">Open</button>` : ''}</td></tr>`).join('')}
-    </tbody></table>`;
+    const payload = JSON.parse(msg.data || '{}');
+    const files = payload.files || payload || [];
+    const currentPath = payload.current_path || '';
+    if (!Array.isArray(files) || files.length === 0) { content.innerHTML = '<div class="insight-empty">No files found</div>'; return; }
+    // parent dir entry
+    let rows = '';
+    if (currentPath) {
+      const parent = currentPath.replace(/\/?[^\/]+$/, '') || '/';
+      if (parent !== currentPath) {
+        rows += `<tr><td><a href="#" onclick="browseDir('${escapeHtml(parent)}')" style="text-decoration:none;color:var(--accent)">📁 ..</a></td><td>-</td><td>dir</td><td></td></tr>`;
+      }
+    }
+    files.forEach(f => {
+      const name = escapeHtml(f.name || '');
+      const pathAttr = typeof f.path === 'string' ? escapeHtml(f.path) : '';
+      const size = f.size || 0;
+      const isDir = f.is_dir;
+      const mime = f.mime || '-';
+      let btn = '';
+      if (isDir) {
+        btn = `<button class="btn btn-glass btn-sm" onclick="browseDir('${pathAttr}')">Open</button>`;
+      } else if (size > 0 && size <= 20971520) {
+        btn = `<button class="btn btn-glass btn-sm" onclick="downloadFile('${pathAttr}')">DL</button>`;
+      } else if (size > 20971520) {
+        btn = `<span style="color:var(--text-ter);font-size:11px">Too large</span>`;
+      }
+      rows += `<tr><td>${isDir ? '📁 ' : '📄 '}${name}</td><td>${isDir ? '-' : formatFileSize(size)}</td><td>${mime}</td><td>${btn}</td></tr>`;
+    });
+    content.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   } catch (_) {
     content.innerHTML = '<div class="insight-empty">Failed to parse file list</div>';
   }
