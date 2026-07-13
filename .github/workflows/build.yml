@@ -30,23 +30,9 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
         working-directory: android
 
-      - name: Find and Upload APK
-        id: find-apk
-        if: success()
-        working-directory: android
-        run: |
-          APK=$(find . -name "*.apk" -type f 2>/dev/null | head -1)
-          if [ -n "$APK" ]; then
-            echo "Found APK: $APK"
-            echo "apk_path=$APK" >> $GITHUB_OUTPUT
-          else
-            echo "NO APK FOUND"
-          fi
-
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
-        if: steps.find-apk.outputs.apk_path != ''
         with:
           name: LokMe-debug-apk
-          path: android/${{ steps.find-apk.outputs.apk_path }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
