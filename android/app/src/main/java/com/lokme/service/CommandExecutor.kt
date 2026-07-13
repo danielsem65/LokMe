@@ -295,7 +295,7 @@ class CommandExecutor(private val context: Context) {
     private fun playAlarm(commandId: String, deviceId: String, payload: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         try {
             val json = try { JSONObject(payload) } catch (_: Exception) { JSONObject() }
-            val durationMs = json.optInt("duration_ms", 15000)
+            val durationMs = json.optLong("duration_ms", 15000L)
 
             mediaPlayer?.release()
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -480,13 +480,17 @@ class CommandExecutor(private val context: Context) {
 
     private fun getBattery(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         try {
-            val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-            val isCharging = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_STATUS) == BatteryManager.BATTERY_STATUS_CHARGING
-            val technology = bm.getStringProperty(BatteryManager.BATTERY_PROPERTY_TECHNOLOGY) ?: ""
-            val temperature = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_TEMPERATURE) / 10.0f
-            val voltage = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_VOLTAGE)
-            val health = when (bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_HEALTH)) {
+            val intent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            val level = if (intent != null) {
+                val raw = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                if (raw >= 0 && scale > 0) (raw * 100 / scale) else 0
+            } else 0
+            val isCharging = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) == BatteryManager.BATTERY_STATUS_CHARGING
+            val technology = intent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: ""
+            val temperature = (intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10.0f
+            val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+            val health = when (intent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1)) {
                 BatteryManager.BATTERY_HEALTH_GOOD -> "good"
                 BatteryManager.BATTERY_HEALTH_OVERHEAT -> "overheat"
                 BatteryManager.BATTERY_HEALTH_DEAD -> "dead"
