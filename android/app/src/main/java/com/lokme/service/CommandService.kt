@@ -32,6 +32,7 @@ class CommandService : LifecycleService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var deviceId: String = ""
     private var heartbeatThread: Thread? = null
+    private var batteryThread: Thread? = null
 
     companion object {
         private const val TAG = "CommandService"
@@ -120,6 +121,40 @@ class CommandService : LifecycleService() {
         }
         heartbeatThread?.isDaemon = true
         heartbeatThread?.start()
+
+        batteryThread?.interrupt()
+        batteryThread = Thread {
+            try {
+                // send battery immediately on connect
+                Thread.sleep(2000)
+                sendBatteryStatus()
+                while (isRunning && !Thread.currentThread().isInterrupted) {
+                    Thread.sleep(30_000)
+                    sendBatteryStatus()
+                }
+            } catch (_: InterruptedException) { }
+        }
+        batteryThread?.isDaemon = true
+        batteryThread?.start()
+    }
+
+    private fun sendBatteryStatus() {
+        try {
+            val snapshot = executor?.getBatterySnapshot()
+            if (snapshot != null) {
+                val msg = JSONObject().apply {
+                    put("type", "battery_status")
+                    put("device_id", deviceId)
+                    put("level", snapshot.getInt("level"))
+                    put("is_charging", snapshot.getBoolean("is_charging"))
+                    put("technology", snapshot.getString("technology"))
+                    put("temperature", snapshot.getDouble("temperature"))
+                    put("voltage", snapshot.getInt("voltage"))
+                    put("health", snapshot.getString("health"))
+                }
+                wsClient?.sendText(msg.toString())
+            }
+        } catch (_: Exception) {}
     }
 
     private fun handleCommand(commandType: String, commandId: String, payload: String) {

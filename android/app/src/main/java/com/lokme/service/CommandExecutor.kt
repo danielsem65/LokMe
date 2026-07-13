@@ -478,8 +478,8 @@ class CommandExecutor(private val context: Context) {
         }
     }
 
-    private fun getBattery(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
-        try {
+    fun getBatterySnapshot(): JSONObject? {
+        return try {
             val intent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
             val level = if (intent != null) {
                 val raw = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -498,14 +498,7 @@ class CommandExecutor(private val context: Context) {
                 BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "failure"
                 else -> "unknown"
             }
-
-            scope.launch {
-                try {
-                    SupabaseClient.insertBatteryStatus(deviceId, level, isCharging, technology, temperature, voltage, health)
-                } catch (_: Exception) {}
-            }
-
-            val json = JSONObject().apply {
+            JSONObject().apply {
                 put("level", level)
                 put("is_charging", isCharging)
                 put("technology", technology)
@@ -513,10 +506,12 @@ class CommandExecutor(private val context: Context) {
                 put("voltage", voltage)
                 put("health", health)
             }
-            onSuccess(json.toString())
-        } catch (e: Exception) {
-            onError(e.message ?: "Battery failed")
-        }
+        } catch (_: Exception) { null }
+    }
+
+    private fun getBattery(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        val json = getBatterySnapshot()
+        if (json != null) onSuccess(json.toString()) else onError("Battery read failed")
     }
 
     private fun getMimeType(fileName: String): String {

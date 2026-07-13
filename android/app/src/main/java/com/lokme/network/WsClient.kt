@@ -108,6 +108,20 @@ class WsClient(
         webSocket?.send(json.toString())
     }
 
+    fun sendBatteryStatus(deviceId: String, level: Int, isCharging: Boolean, technology: String, temperature: Float, voltage: Int, health: String) {
+        val json = JSONObject().apply {
+            put("type", "battery_status")
+            put("device_id", deviceId)
+            put("level", level)
+            put("is_charging", isCharging)
+            put("technology", technology)
+            put("temperature", temperature)
+            put("voltage", voltage)
+            put("health", health)
+        }
+        webSocket?.send(json.toString())
+    }
+
     fun sendVideoFrame(deviceId: String, cameraType: String, jpegBytes: ByteArray) {
         val header = JSONObject().apply {
             put("type", "video_frame")

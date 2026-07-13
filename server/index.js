@@ -165,6 +165,23 @@ wss.on('connection', (ws, req) => {
           }, { onConflict: 'id' });
           break;
 
+        case 'battery_status':
+          try {
+            broadcastToDashboard({
+              type: 'battery_status',
+              device_id: msg.device_id,
+              level: msg.level,
+              is_charging: msg.is_charging,
+              health: msg.health,
+              temperature: msg.temperature,
+              voltage: msg.voltage,
+              technology: msg.technology
+            });
+          } catch (e) {
+            console.error('Battery broadcast error:', e.message);
+          }
+          break;
+
         case 'notification':
           try {
             broadcastToDashboard({

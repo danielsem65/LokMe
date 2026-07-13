@@ -160,17 +160,13 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h2v8H4zm6-4h4v16h-4zm8 4h2v8h-2z"/></svg>
               <span>Vibrate</span>
             </button>
-            <button class="cmd-btn cmd-secondary" onclick="listFiles()">
+            <button class="cmd-btn cmd-secondary" onclick="openFilesPopup()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
               <span>Files</span>
             </button>
-            <button class="cmd-btn cmd-secondary" onclick="fetchCalendar()">
+            <button class="cmd-btn cmd-secondary" onclick="openCalendarPopup()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               <span>Calendar</span>
-            </button>
-            <button class="cmd-btn cmd-secondary" onclick="refreshBattery()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/><line x1="7" y1="10" x2="7" y2="14"/><line x1="11" y1="10" x2="11" y2="14"/><line x1="15" y1="10" x2="15" y2="14"/></svg>
-              <span>Battery</span>
             </button>
           </div>
 
@@ -244,52 +240,25 @@
             <div id="deviceNotifications" class="table-container"></div>
           </div>
 
-          <!-- Battery Status -->
+          <!-- Battery Status (auto-sent by device) -->
           <div class="glass-card">
             <div class="card-header">
               <h3>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
-                Battery Status <span class="status-dot connected" style="display:inline-block;margin-left:8px"></span> <span style="font-size:11px;color:var(--text-ter)">(auto-refreshes every 30s)</span>
+                Battery Status <span style="font-size:11px;color:var(--text-ter)">(auto-refreshes every 30s)</span>
               </h3>
-              <div class="header-actions">
-                <button class="btn btn-glass btn-sm" onclick="startBatteryAutoRefresh()">Auto</button>
-                <button class="btn btn-glass btn-sm" onclick="stopBatteryAutoRefresh()">Stop</button>
-              </div>
             </div>
-            <div class="stats-row" style="margin-bottom:12px">
+            <div class="stats-row">
               <div class="stat-pill"><span class="stat-pill-value" id="batteryLevel">--</span><span>Level</span></div>
               <div class="stat-pill"><span class="stat-pill-value" id="batteryCharging">--</span><span>Status</span></div>
               <div class="stat-pill"><span class="stat-pill-value" id="batteryHealth">--</span><span>Health</span></div>
               <div class="stat-pill"><span class="stat-pill-value" id="batteryTemp">--</span><span>Temp</span></div>
               <div class="stat-pill"><span class="stat-pill-value" id="batteryTech">--</span><span>Tech</span></div>
             </div>
-            <div id="batteryHistory" class="table-container"></div>
           </div>
 
-          <!-- Calendar Events -->
-          <div class="glass-card">
-            <div class="card-header">
-              <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Calendar Events (Last 7 Days)
-              </h3>
-            </div>
-            <div id="calendarEvents" class="table-container"></div>
-          </div>
-
-          <!-- File Browser -->
-          <div class="glass-card">
-            <div class="card-header">
-              <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-                File Browser <span style="font-size:11px;color:var(--text-ter)">(max 20MB per file download)</span>
-              </h3>
-              <div class="header-actions">
-                <button class="btn btn-glass btn-sm" onclick="listFiles()">Browse</button>
-              </div>
-            </div>
-            <div id="deviceFiles" class="table-container"></div>
-          </div>
+          <!-- Calendar Events open in popup -->
+          <!-- File Browser open in popup -->
         </div>
       </section>
 
@@ -432,6 +401,38 @@
           <div class="modal-actions">
             <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
             <button class="btn btn-primary" onclick="sendDialog()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Browser Popup -->
+      <div id="filesPopup" class="modal hidden">
+        <div class="modal-content modal-wide">
+          <div class="card-header">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              File Browser <span style="font-size:11px;color:var(--text-ter)">(max 20MB per file)</span>
+            </h3>
+            <button class="btn btn-outline btn-sm" onclick="closeFilesPopup()">&times;</button>
+          </div>
+          <div id="filesPopupContent">
+            <div class="insight-empty">Select a device and click Files to browse.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar Popup -->
+      <div id="calendarPopup" class="modal hidden">
+        <div class="modal-content modal-wide">
+          <div class="card-header">
+            <h3>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Calendar Events (Last 7 Days)
+            </h3>
+            <button class="btn btn-outline btn-sm" onclick="closeCalendarPopup()">&times;</button>
+          </div>
+          <div id="calendarPopupContent">
+            <div class="insight-empty">Select a device and click Calendar to fetch.</div>
           </div>
         </div>
       </div>

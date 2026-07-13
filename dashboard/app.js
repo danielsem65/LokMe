@@ -128,13 +128,23 @@ function connectWS() {
       if (msg.type === 'video_frame') { pendingVideoFrame = true; document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`; }
       if (msg.type === 'audio_frame') { pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 }; }
       if (msg.type === 'notification') { handleLiveNotification(msg); playBeep(); }
-      if (msg.type === 'battery_update') { handleBatteryUpdate(msg); }
+      if (msg.type === 'battery_status') { handleBatteryStatus(msg); }
     } catch (_) {}
   };
 }
 
 function handleDeviceResponse(msg) {
-  showToast(`${msg.command_type}: ${msg.success ? 'OK' : 'Failed'}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
+  if (msg.success && msg.command_type === 'LIST_FILES') {
+    handleFilesResponse(msg);
+  } else if (msg.success && msg.command_type === 'GET_CALENDAR') {
+    handleCalendarResponse(msg);
+  } else if (msg.success && msg.command_type === 'DOWNLOAD_FILE') {
+    // open download URL in new tab
+    window.open(msg.data, '_blank');
+    showToast('Downloading file...');
+  } else {
+    showToast(`${msg.command_type}: ${msg.success ? 'OK' : 'Failed'}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
+  }
   if (selectedDevice === msg.device_id) loadCommandHistory(msg.device_id);
 }
 
@@ -389,10 +399,6 @@ function selectDevice(deviceId) {
   loadDevicePhotos(deviceId);
   loadDeviceLocations(deviceId);
   loadDeviceNotifications(deviceId);
-  loadBatteryHistory(deviceId);
-  loadCalendarEvents(deviceId);
-  loadDeviceFiles(deviceId);
-  startBatteryAutoRefresh();
   closeSidebar();
   // fetch actual name
   fetch(`${API_BASE}/api/devices`).then(r=>r.json()).then(devices=>{
@@ -422,7 +428,6 @@ function editDeviceName() {
 }
 function showDeviceList() {
   selectedDevice = null;
-  stopBatteryAutoRefresh();
   document.getElementById('deviceDetail').classList.add('hidden');
   document.getElementById('deviceList').classList.remove('hidden');
   document.getElementById('deviceList').parentElement.querySelector('.section-header').classList.remove('hidden');
@@ -712,7 +717,19 @@ async function loadDeviceNotifications(deviceId) {
 }
 async function deleteDeviceNotifications() { if (!selectedDevice) return; try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }
 
-// ===== New Feature Commands =====
+// ===== Battery (auto-sent by device via WS every 30s) =====
+function handleBatteryStatus(msg) {
+  const level = document.getElementById('batteryLevel');
+  if (level) {
+    document.getElementById('batteryLevel').textContent = msg.level + '%';
+    document.getElementById('batteryCharging').textContent = msg.is_charging ? 'Charging' : 'Not Charging';
+    document.getElementById('batteryHealth').textContent = msg.health || 'unknown';
+    document.getElementById('batteryTemp').textContent = msg.temperature ? msg.temperature + '°C' : '-';
+    document.getElementById('batteryTech').textContent = msg.technology || '-';
+  }
+}
+
+// ===== Alarm / Vibrate =====
 function sendAlarm() {
   const ms = prompt('Alarm duration (ms):', '15000');
   if (ms) sendCommand('PLAY_ALARM', { duration_ms: parseInt(ms) || 15000 });
@@ -721,73 +738,72 @@ function sendVibrate() {
   const ms = prompt('Vibrate duration (ms):', '10000');
   if (ms) sendCommand('VIBRATE_DEVICE', { duration_ms: parseInt(ms) || 10000 });
 }
-function listFiles() {
+
+// ===== File Browser Popup =====
+function openFilesPopup() {
+  if (!selectedDevice) return showToast('Select a device first', true);
+  const content = document.getElementById('filesPopupContent');
+  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Waiting for device response...</p><div class="progress-bar"><div class="progress-fill"></div></div><p class="error-note hidden" id="filesError">Device is offline. Check connection.</p></div>';
+  document.getElementById('filesPopup').classList.remove('hidden');
+  // send command
   const path = prompt('Directory path:', '/storage/emulated/0');
-  if (path) sendCommand('LIST_FILES', { path });
+  if (!path) { closeFilesPopup(); return; }
+  sendCommand('LIST_FILES', { path });
 }
-function sendDownloadFile(filePath) {
+
+function handleFilesResponse(msg) {
+  const content = document.getElementById('filesPopupContent');
+  if (!content) return;
+  try {
+    const files = JSON.parse(msg.data || '[]');
+    if (files.length === 0) { content.innerHTML = '<div class="insight-empty">No files found</div>'; return; }
+    content.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>
+      ${files.map(f => `<tr><td>${f.is_dir ? '📁 ' : '📄 '}${escapeHtml(f.name || '')}</td><td>${f.is_dir ? '-' : formatFileSize(f.size || 0)}</td><td>${f.mime || '-'}</td><td>${!f.is_dir && f.size > 0 && f.size <= 20971520 ? `<button class="btn btn-glass btn-sm" onclick="downloadFile('${escapeHtml(f.path)}')">DL</button>` : f.is_dir ? `<button class="btn btn-glass btn-sm" onclick="browseDir('${escapeHtml(f.path)}')">Open</button>` : ''}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {
+    content.innerHTML = '<div class="insight-empty">Failed to parse file list</div>';
+  }
+}
+
+function browseDir(path) {
+  const content = document.getElementById('filesPopupContent');
+  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Loading directory...</p><div class="progress-bar"><div class="progress-fill"></div></div></div>';
+  sendCommand('LIST_FILES', { path });
+}
+
+function downloadFile(filePath) {
   sendCommand('DOWNLOAD_FILE', { file_path: filePath });
 }
-function refreshBattery() {
-  sendCommand('GET_BATTERY');
+
+function closeFilesPopup() {
+  document.getElementById('filesPopup').classList.add('hidden');
 }
-function fetchCalendar() {
+
+// ===== Calendar Popup =====
+function openCalendarPopup() {
+  if (!selectedDevice) return showToast('Select a device first', true);
+  const content = document.getElementById('calendarPopupContent');
+  content.innerHTML = '<div class="loading-popup"><div class="spinner"></div><p>Fetching calendar events...</p><div class="progress-bar"><div class="progress-fill"></div></div></div>';
+  document.getElementById('calendarPopup').classList.remove('hidden');
   sendCommand('GET_CALENDAR');
 }
 
-let batteryRefreshTimer = null;
-function startBatteryAutoRefresh() {
-  stopBatteryAutoRefresh();
-  refreshBattery();
-  batteryRefreshTimer = setInterval(refreshBattery, 30000);
-}
-function stopBatteryAutoRefresh() {
-  if (batteryRefreshTimer) { clearInterval(batteryRefreshTimer); batteryRefreshTimer = null; }
+function handleCalendarResponse(msg) {
+  const content = document.getElementById('calendarPopupContent');
+  if (!content) return;
+  try {
+    const events = JSON.parse(msg.data || '[]');
+    if (events.length === 0) { content.innerHTML = '<div class="insight-empty">No calendar events found in last 7 days</div>'; return; }
+    content.innerHTML = `<table><thead><tr><th>Title</th><th>Date</th><th>Location</th></tr></thead><tbody>
+      ${events.map(e => `<tr><td>${escapeHtml(e.title || '')}</td><td>${e.start_time ? new Date(e.start_time).toLocaleString() : '-'}</td><td>${escapeHtml(e.location || '-')}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {
+    content.innerHTML = '<div class="insight-empty">Failed to parse calendar data</div>';
+  }
 }
 
-async function loadBatteryHistory(deviceId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/device/${deviceId}/battery`);
-    const data = await res.json();
-    const container = document.getElementById('batteryHistory');
-    if (!container) return;
-    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No battery data yet</div>'; return; }
-    const latest = data[0];
-    document.getElementById('batteryLevel').textContent = latest.level + '%';
-    document.getElementById('batteryCharging').textContent = latest.is_charging ? 'Charging' : 'Not Charging';
-    document.getElementById('batteryHealth').textContent = latest.health || 'unknown';
-    document.getElementById('batteryTemp').textContent = latest.temperature ? latest.temperature + '°C' : '-';
-    document.getElementById('batteryTech').textContent = latest.technology || '-';
-    container.innerHTML = `<table><thead><tr><th>Level</th><th>Charging</th><th>Temp</th><th>Time</th></tr></thead><tbody>
-      ${data.slice(0, 20).map(b => `<tr><td>${b.level}%</td><td>${b.is_charging ? 'Yes' : 'No'}</td><td>${b.temperature ? b.temperature + '°C' : '-'}</td><td>${new Date(b.created_at).toLocaleString()}</td></tr>`).join('')}
-    </tbody></table>`;
-  } catch (_) {}
-}
-
-async function loadCalendarEvents(deviceId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/device/${deviceId}/calendar`);
-    const data = await res.json();
-    const container = document.getElementById('calendarEvents');
-    if (!container) return;
-    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No calendar events found</div>'; return; }
-    container.innerHTML = `<table><thead><tr><th>Title</th><th>Date</th><th>Location</th></tr></thead><tbody>
-      ${data.slice(0, 50).map(e => `<tr><td>${escapeHtml(e.title || '')}</td><td>${e.start_time ? new Date(e.start_time).toLocaleString() : '-'}</td><td>${escapeHtml(e.event_location || '-')}</td></tr>`).join('')}
-    </tbody></table>`;
-  } catch (_) {}
-}
-
-async function loadDeviceFiles(deviceId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/device/${deviceId}/files`);
-    const data = await res.json();
-    const container = document.getElementById('deviceFiles');
-    if (!container) return;
-    if (data.length === 0) { container.innerHTML = '<div class="empty-state">No file data. Send LIST_FILES command first.</div>'; return; }
-    container.innerHTML = `<table><thead><tr><th>Name</th><th>Size</th><th>Type</th><th></th></tr></thead><tbody>
-      ${data.slice(0, 100).map(f => `<tr><td>${f.is_directory ? '📁 ' : '📄 '}${escapeHtml(f.file_name)}</td><td>${f.is_directory ? '-' : formatFileSize(f.file_size)}</td><td>${f.mime_type || '-'}</td><td>${!f.is_directory && f.file_size > 0 && f.file_size <= 20971520 ? `<button class="btn btn-glass btn-sm" onclick="sendDownloadFile('${f.file_path.replace(/'/g, "\\'")}')">DL</button>` : ''}</td></tr>`).join('')}
-    </tbody></table>`;
-  } catch (_) {}
+function closeCalendarPopup() {
+  document.getElementById('calendarPopup').classList.add('hidden');
 }
 
 function formatFileSize(bytes) {
