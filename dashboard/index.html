@@ -99,14 +99,14 @@
 
         <div id="deviceList" class="card-grid"></div>
 
-        <!-- Device Detail -->
+          <!-- Device Detail -->
         <div id="deviceDetail" class="hidden">
           <div class="section-header">
             <div>
               <h2 id="detailTitle">Device</h2>
               <p class="subtitle" id="detailSub">Connected · Last seen now</p>
-              <p class="subtitle" id="detailBattery" style="margin-top:4px;display:none">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
+              <p class="subtitle" id="detailBattery" style="margin-top:2px;display:none;font-size:12px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
                 <span id="detailBatteryText">--</span>
               </p>
             </div>
@@ -115,6 +115,23 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
                 Back
               </button>
+            </div>
+          </div>
+
+          <!-- Battery Card -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="18" height="12" rx="2"/><line x1="23" y1="10" x2="23" y2="14"/></svg>
+                Battery <span style="font-size:11px;color:var(--text-ter)">(auto 30s)</span>
+              </h3>
+            </div>
+            <div class="stats-row">
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryLevel">--</span><span>Level</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryCharging">--</span><span>Status</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryHealth">--</span><span>Health</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryTemp">--</span><span>Temp</span></div>
+              <div class="stat-pill"><span class="stat-pill-value" id="batteryTech">--</span><span>Tech</span></div>
             </div>
           </div>
 

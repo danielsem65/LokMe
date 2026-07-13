@@ -719,12 +719,23 @@ async function deleteDeviceNotifications() { if (!selectedDevice) return; try { 
 
 // ===== Battery (auto-sent by device via WS every 30s) =====
 function handleBatteryStatus(msg) {
-  const el = document.getElementById('detailBattery');
-  const txt = document.getElementById('detailBatteryText');
-  if (el && txt && msg.device_id === selectedDevice) {
-    el.style.display = 'block';
-    const icon = msg.is_charging ? '⚡' : '🔋';
-    txt.textContent = `${icon} ${msg.level}% · ${msg.is_charging ? 'Charging' : 'Not Charging'} · ${msg.health || 'unknown'} · ${msg.temperature || '-'}°C`;
+  if (msg.device_id === selectedDevice) {
+    // subtitle line
+    const el = document.getElementById('detailBattery');
+    const txt = document.getElementById('detailBatteryText');
+    if (el && txt) {
+      el.style.display = 'block';
+      txt.textContent = `${msg.level}% · ${msg.is_charging ? 'Charging' : 'Not Charging'} · ${msg.health || 'unknown'} · ${msg.temperature ? msg.temperature + '°C' : '-'}`;
+    }
+    // card pills
+    const level = document.getElementById('batteryLevel');
+    if (level) {
+      document.getElementById('batteryLevel').textContent = msg.level + '%';
+      document.getElementById('batteryCharging').textContent = msg.is_charging ? 'Charging' : 'Not Charging';
+      document.getElementById('batteryHealth').textContent = msg.health || 'unknown';
+      document.getElementById('batteryTemp').textContent = msg.temperature ? msg.temperature + '°C' : '-';
+      document.getElementById('batteryTech').textContent = msg.technology || '-';
+    }
   }
 }
 
