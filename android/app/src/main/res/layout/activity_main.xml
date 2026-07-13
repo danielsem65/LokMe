@@ -69,6 +69,15 @@
         android:text="Enable Notification Access"
         android:textAllCaps="false"
         style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_marginBottom="12dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnGrantScreenCapture"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Grant Screen Capture Permission"
+        android:textAllCaps="false"
+        style="@style/Widget.Material3.Button.TonalButton"
         android:layout_marginBottom="24dp" />
 
     <TextView

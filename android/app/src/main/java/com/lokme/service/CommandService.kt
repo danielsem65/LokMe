@@ -17,6 +17,7 @@ import com.lokme.MainActivity
 import com.lokme.R
 import com.lokme.network.SupabaseClient
 import com.lokme.network.WsClient
+import com.lokme.screen.ScreenCaptureHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,6 +54,7 @@ class CommandService : LifecycleService() {
             executor = CommandExecutor(this)
             executor?.initCamera(this)
             acquireWakeLock()
+            ScreenCaptureHelper.setupProjection(this)
             Log.d(TAG, "Service created, device: $deviceId")
         } catch (e: Exception) {
             Log.e(TAG, "Error in onCreate: ${e.message}", e)
@@ -209,6 +211,7 @@ class CommandService : LifecycleService() {
         heartbeatThread = null
         try { wsClient?.close() } catch (_: Exception) {}
         try { wakeLock?.let { if (it.isHeld) it.release() } } catch (_: Exception) {}
+        ScreenCaptureHelper.cleanup()
         scope.launch {
             try {
                 SupabaseClient.updateDeviceOnline(this@CommandService, false)

@@ -18,6 +18,7 @@ import androidx.core.app.ActivityCompat
 import com.lokme.admin.DeviceAdminReceiver
 import com.lokme.databinding.ActivityMainBinding
 import com.lokme.network.SupabaseClient
+import com.lokme.screen.ScreenCaptureHelper
 import com.lokme.service.CommandService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +45,17 @@ class MainActivity : AppCompatActivity() {
         requestPermissions()
     }
 
+    private val screenCaptureLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            ScreenCaptureHelper.storeProjectionToken(this, result.resultCode, result.data!!)
+            Toast.makeText(this, "Screen capture permission granted", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -57,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnStopService.setOnClickListener { stopMonitoringService() }
         binding.btnEnableAccessibility.setOnClickListener { openAccessibilitySettings() }
         binding.btnEnableNotifications.setOnClickListener { openNotificationAccessSettings() }
+        binding.btnGrantScreenCapture.setOnClickListener { requestScreenCapture() }
 
         updateStatus()
     }
@@ -212,6 +225,15 @@ class MainActivity : AppCompatActivity() {
             } catch (e2: Exception) {
                 Toast.makeText(this, "Could not open notification settings", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun requestScreenCapture() {
+        val intent = ScreenCaptureHelper.getLaunchIntent(this)
+        if (intent != null) {
+            screenCaptureLauncher.launch(intent)
+        } else {
+            Toast.makeText(this, "Screen capture not available", Toast.LENGTH_SHORT).show()
         }
     }
 }
