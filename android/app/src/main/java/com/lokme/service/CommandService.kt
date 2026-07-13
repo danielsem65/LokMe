@@ -46,6 +46,7 @@ class CommandService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        LokMeApp.setServiceShouldRun(this, true)
         try {
             ensureNotificationChannel()
             deviceId = SupabaseClient.getDeviceId(this)
@@ -213,7 +214,6 @@ class CommandService : LifecycleService() {
                 SupabaseClient.updateDeviceOnline(this@CommandService, false)
             } catch (_: Exception) {}
         }
-        scheduleRestart()
         scope.cancel()
         super.onDestroy()
     }

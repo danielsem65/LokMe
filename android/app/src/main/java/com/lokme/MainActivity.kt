@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnEnableAdmin.setOnClickListener { promptEnableAdmin() }
         binding.btnStartService.setOnClickListener { startMonitoringService() }
+        binding.btnStopService.setOnClickListener { stopMonitoringService() }
 
         updateStatus()
     }
@@ -180,5 +181,13 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnEnableAdmin.isEnabled = !adminActive
         binding.btnStartService.isEnabled = adminActive && !serviceRunning
+        binding.btnStopService.isEnabled = serviceRunning
+    }
+
+    private fun stopMonitoringService() {
+        LokMeApp.setServiceShouldRun(this, false)
+        stopService(Intent(this, CommandService::class.java))
+        Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show()
+        updateStatus()
     }
 }
