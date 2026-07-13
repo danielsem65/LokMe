@@ -127,6 +127,21 @@ wss.on('connection', (ws, req) => {
                 }
               });
             }
+
+            if (header.type === 'audio_frame' && header.device_id) {
+              dashboardClients.forEach(dashWs => {
+                if (dashWs.readyState === 1) {
+                  const audioMsg = JSON.stringify({
+                    type: 'audio_frame',
+                    device_id: header.device_id,
+                    sample_rate: header.sample_rate || 16000,
+                    channels: header.channels || 1
+                  });
+                  dashWs.send(audioMsg);
+                  dashWs.send(jpegData);
+                }
+              });
+            }
           }
         }
         return;

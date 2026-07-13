@@ -1,5 +1,6 @@
 package com.lokme.service
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -212,7 +213,27 @@ class CommandService : LifecycleService() {
                 SupabaseClient.updateDeviceOnline(this@CommandService, false)
             } catch (_: Exception) {}
         }
+        scheduleRestart()
         scope.cancel()
         super.onDestroy()
+    }
+
+    private fun scheduleRestart() {
+        try {
+            val intent = Intent(this, RestartServiceReceiver::class.java)
+            val pendingIntent = PendingIntent.getBroadcast(
+                this, 0, intent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.set(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + 10_000,
+                pendingIntent
+            )
+            Log.d(TAG, "Scheduled restart in 10s")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to schedule restart: ${e.message}")
+        }
     }
 }

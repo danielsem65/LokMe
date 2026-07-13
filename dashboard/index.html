@@ -73,8 +73,11 @@
           <!-- Live Video Stream -->
           <div class="data-section" id="videoSection">
             <div class="section-subheader">
-              <h3>Live Video Stream</h3>
-              <div style="display:flex;gap:8px">
+              <h3>Live Video + Audio Stream</h3>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="color:#aaa;font-size:13px;display:flex;align-items:center;gap:4px">
+                  <input type="checkbox" id="audioToggle" checked /> Audio
+                </label>
                 <button class="btn btn-primary btn-sm" onclick="startVideoStream(false)">Start Back Camera</button>
                 <button class="btn btn-primary btn-sm" onclick="startVideoStream(true)">Start Front Camera</button>
                 <button class="btn btn-danger btn-sm" onclick="stopVideoStream()">Stop Stream</button>

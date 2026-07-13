@@ -6,7 +6,9 @@ let selectedDevice = null;
 let map = null;
 let marker = null;
 let pendingVideoFrame = null;
+let pendingAudioFrame = null;
 let onlineDeviceIds = new Set();
+let audioCtx = null;
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,6 +80,9 @@ function connectWS() {
         }
         img.onload = () => URL.revokeObjectURL(url);
         pendingVideoFrame = false;
+      } else if (pendingAudioFrame) {
+        playAudioFrame(e.data, pendingAudioFrame.sample_rate, pendingAudioFrame.channels);
+        pendingAudioFrame = null;
       }
       return;
     }
@@ -93,6 +98,9 @@ function connectWS() {
         pendingVideoFrame = true;
         document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`;
       }
+      if (msg.type === 'audio_frame') {
+        pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 };
+      }
     } catch (err) {}
   };
 }
@@ -101,6 +109,32 @@ function handleDeviceResponse(msg) {
   const status = msg.success ? 'Command succeeded' : 'Command failed';
   showToast(`${msg.command_type}: ${status}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
   if (selectedDevice === msg.device_id) loadCommandHistory(msg.device_id);
+}
+
+function playAudioFrame(pcmData, sampleRate, channels) {
+  if (!document.getElementById('audioToggle')?.checked) return;
+
+  if (!audioCtx) {
+    audioCtx = new AudioContext({ sampleRate });
+  }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  const int16 = new Int16Array(pcmData);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) {
+    float32[i] = int16[i] / 32768.0;
+  }
+
+  const buffer = audioCtx.createBuffer(channels, float32.length, sampleRate);
+  buffer.getChannelData(0).set(float32);
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.start();
 }
 
 // ===== Confirm Modal =====
@@ -234,6 +268,11 @@ function stopVideoStream() {
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('videoInfo').classList.add('hidden');
   pendingVideoFrame = null;
+  pendingAudioFrame = null;
+  if (audioCtx) {
+    audioCtx.close().catch(() => {});
+    audioCtx = null;
+  }
 }
 
 function promptDialog() {

