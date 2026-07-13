@@ -1,2 +1,7 @@
-build: npm install
-start: node index.js
+services:
+  - type: web
+    name: LokMe
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
