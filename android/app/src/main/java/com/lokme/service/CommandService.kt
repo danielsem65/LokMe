@@ -19,6 +19,7 @@ import com.lokme.network.SupabaseClient
 import com.lokme.network.WsClient
 import com.lokme.screen.ScreenCaptureHelper
 import kotlinx.coroutines.CoroutineScope
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
