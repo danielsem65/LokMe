@@ -65,7 +65,6 @@ function connectWS() {
   ws.binaryType = 'arraybuffer';
 
   ws.onmessage = (e) => {
-    // Handle video frames (binary)
     if (e.data instanceof ArrayBuffer) {
       if (pendingVideoFrame) {
         const blob = new Blob([e.data], { type: 'image/jpeg' });
@@ -77,23 +76,24 @@ function connectWS() {
           document.getElementById('videoPlaceholder').classList.add('hidden');
           document.getElementById('videoInfo').classList.remove('hidden');
         }
-        // Clean up old URL after it loads
         img.onload = () => URL.revokeObjectURL(url);
         pendingVideoFrame = false;
       }
       return;
     }
 
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'device_list') {
-      onlineDeviceIds = new Set(msg.devices);
-      refreshDevices();
-    }
-    if (msg.type === 'device_response') handleDeviceResponse(msg);
-    if (msg.type === 'video_frame') {
-      pendingVideoFrame = true;
-      document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`;
-    }
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'device_list') {
+        onlineDeviceIds = new Set(msg.devices);
+        refreshDevices();
+      }
+      if (msg.type === 'device_response') handleDeviceResponse(msg);
+      if (msg.type === 'video_frame') {
+        pendingVideoFrame = true;
+        document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`;
+      }
+    } catch (err) {}
   };
 }
 
@@ -221,11 +221,16 @@ function capturePhoto(useFront) {
 
 function startVideoStream(useFront) {
   sendCommand('START_VIDEO_STREAM', { front_camera: useFront });
+  document.getElementById('videoPlaceholder').textContent = 'Starting stream...';
+  document.getElementById('videoPlaceholder').classList.remove('hidden');
+  document.getElementById('videoFeed').classList.add('hidden');
+  document.getElementById('videoInfo').classList.add('hidden');
 }
 
 function stopVideoStream() {
   sendCommand('STOP_VIDEO_STREAM');
   document.getElementById('videoFeed').classList.add('hidden');
+  document.getElementById('videoPlaceholder').textContent = 'No active stream';
   document.getElementById('videoPlaceholder').classList.remove('hidden');
   document.getElementById('videoInfo').classList.add('hidden');
   pendingVideoFrame = null;

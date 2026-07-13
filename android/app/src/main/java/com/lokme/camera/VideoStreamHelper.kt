@@ -36,6 +36,7 @@ class VideoStreamHelper(
                 val future = ProcessCameraProvider.getInstance(context)
                 future.addListener({
                     cameraProvider = future.get()
+                    Log.d("VideoStream", "Camera provider initialized")
                 }, ContextCompat.getMainExecutor(context))
             } catch (e: Exception) {
                 Log.e("VideoStream", "Init error: ${e.message}")
@@ -65,11 +66,16 @@ class VideoStreamHelper(
                 return@setAnalyzer
             }
 
-            val jpegBytes = imageProxyToJpeg(imageProxy)
-            imageProxy.close()
+            try {
+                val jpegBytes = imageProxyToJpeg(imageProxy)
+                imageProxy.close()
 
-            if (jpegBytes != null && isStreaming.get()) {
-                wsClient.sendVideoFrame(deviceId, currentCameraType, jpegBytes)
+                if (jpegBytes != null && isStreaming.get()) {
+                    wsClient.sendVideoFrame(deviceId, currentCameraType, jpegBytes)
+                }
+            } catch (e: Exception) {
+                Log.e("VideoStream", "Frame error: ${e.message}")
+                try { imageProxy.close() } catch (_: Exception) {}
             }
         }
 
@@ -106,30 +112,52 @@ class VideoStreamHelper(
 
     private fun imageProxyToJpeg(image: ImageProxy): ByteArray? {
         return try {
-            val nv21 = imageProxyToNv21(image)
+            val nv21 = yuv420888ToNv21(image)
             val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
             val out = ByteArrayOutputStream()
-            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 60, out)
+            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 50, out)
             out.toByteArray()
         } catch (e: Exception) {
-            Log.e("VideoStream", "Frame conversion error: ${e.message}")
+            Log.e("VideoStream", "JPEG conversion error: ${e.message}")
             null
         }
     }
 
-    private fun imageProxyToNv21(image: ImageProxy): ByteArray {
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
+    private fun yuv420888ToNv21(image: ImageProxy): ByteArray {
+        val width = image.width
+        val height = image.height
+        val yPlane = image.planes[0]
+        val uPlane = image.planes[1]
+        val vPlane = image.planes[2]
 
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
+        val yBuffer = yPlane.buffer
+        val uBuffer = uPlane.buffer
+        val vBuffer = vPlane.buffer
 
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
+        val yRowStride = yPlane.rowStride
+        val uvRowStride = uPlane.rowStride
+        val uvPixelStride = uPlane.pixelStride
+
+        val nv21 = ByteArray(width * height * 3 / 2)
+
+        var pos = 0
+
+        for (row in 0 until height) {
+            val yRowStart = row * yRowStride
+            for (col in 0 until width) {
+                nv21[pos++] = yBuffer.get(yRowStart + col)
+            }
+        }
+
+        val uvHeight = height / 2
+        val uvWidth = width / 2
+        for (row in 0 until uvHeight) {
+            for (col in 0 until uvWidth) {
+                val uvIndex = row * uvRowStride + col * uvPixelStride
+                nv21[pos++] = vBuffer.get(uvIndex)
+                nv21[pos++] = uBuffer.get(uvIndex)
+            }
+        }
 
         return nv21
     }
