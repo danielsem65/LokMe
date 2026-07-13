@@ -56,7 +56,7 @@ class VideoStreamHelper(
         currentCameraType = if (useFrontCamera) "front" else "back"
 
         val imageAnalysis = ImageAnalysis.Builder()
-            .setTargetResolution(Size(640, 480))
+            .setTargetResolution(Size(320, 240))
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
 
@@ -115,7 +115,7 @@ class VideoStreamHelper(
             val nv21 = yuv420888ToNv21(image)
             val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
             val out = ByteArrayOutputStream()
-            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 50, out)
+            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 30, out)
             out.toByteArray()
         } catch (e: Exception) {
             Log.e("VideoStream", "JPEG conversion error: ${e.message}")
