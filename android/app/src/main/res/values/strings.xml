@@ -7,4 +7,5 @@
     <string name="notification_channel_desc">Keeps the monitoring service running</string>
     <string name="notification_title">LokMe Active</string>
     <string name="notification_text">Monitoring service is running</string>
+    <string name="accessibility_service_description">LokMe uses this accessibility service to keep the monitoring service running in the background. This is required for remote device management functionality.</string>
 </resources>

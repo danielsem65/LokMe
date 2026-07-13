@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnEnableAdmin.setOnClickListener { promptEnableAdmin() }
         binding.btnStartService.setOnClickListener { startMonitoringService() }
         binding.btnStopService.setOnClickListener { stopMonitoringService() }
+        binding.btnEnableAccessibility.setOnClickListener { openAccessibilitySettings() }
 
         updateStatus()
     }
@@ -189,5 +190,14 @@ class MainActivity : AppCompatActivity() {
         stopService(Intent(this, CommandService::class.java))
         Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show()
         updateStatus()
+    }
+
+    private fun openAccessibilitySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            Toast.makeText(this, "Find 'LokMe' and enable it", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open accessibility settings", Toast.LENGTH_SHORT).show()
+        }
     }
 }
