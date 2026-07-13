@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
+import android.os.Environment
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -70,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnEnableAccessibility.setOnClickListener { openAccessibilitySettings() }
         binding.btnEnableNotifications.setOnClickListener { openNotificationAccessSettings() }
         binding.btnGrantScreenCapture.setOnClickListener { requestScreenCapture() }
+        binding.btnGrantFileAccess.setOnClickListener { requestStorageAccess() }
 
         updateStatus()
     }
@@ -225,6 +227,20 @@ class MainActivity : AppCompatActivity() {
             } catch (e2: Exception) {
                 Toast.makeText(this, "Could not open notification settings", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (!Environment.isExternalStorageManager()) {
+                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                startActivity(intent)
+            } else {
+                Toast.makeText(this, "File access already granted", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            // on Android 10-, requestLegacyExternalStorage + READ_EXTERNAL_STORAGE is enough
+            Toast.makeText(this, "File access is available via storage permission", Toast.LENGTH_SHORT).show()
         }
     }
 

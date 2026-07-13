@@ -786,10 +786,8 @@ function handleFilesResponse(msg) {
       let btn = '';
       if (isDir) {
         btn = `<button class="btn btn-glass btn-sm" onclick="browseDir('${pathAttr}')">Open</button>`;
-      } else if (size > 0 && size <= 20971520) {
+      } else {
         btn = `<button class="btn btn-glass btn-sm" onclick="downloadFile('${pathAttr}')">DL</button>`;
-      } else if (size > 20971520) {
-        btn = `<span style="color:var(--text-ter);font-size:11px">Too large</span>`;
       }
       rows += `<tr><td>${isDir ? '📁 ' : '📄 '}${name}</td><td>${isDir ? '-' : formatFileSize(size)}</td><td>${mime}</td><td>${btn}</td></tr>`;
     });

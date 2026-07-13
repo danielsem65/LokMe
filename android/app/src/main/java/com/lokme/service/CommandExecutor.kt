@@ -351,14 +351,15 @@ class CommandExecutor(private val context: Context) {
             if (!dir.exists() || !dir.isDirectory) { onError("Directory not found: $path"); return }
 
             val files = dir.listFiles()?.map { file ->
+                val isDir = file.isDirectory
                 DeviceFileEntry(
                     id = deviceId + "_" + file.absolutePath.hashCode(),
                     device_id = deviceId,
                     file_name = file.name,
                     file_path = file.absolutePath,
-                    file_size = if (file.isFile) file.length() else 0,
-                    mime_type = if (file.isDirectory) "dir" else getMimeType(file.name),
-                    is_directory = file.isDirectory,
+                    file_size = if (isDir) 0 else file.length(),
+                    mime_type = if (isDir) "dir" else getMimeType(file.name),
+                    is_directory = isDir,
                     last_modified = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date(file.lastModified()))
                 )
             }?.toList() ?: emptyList()
