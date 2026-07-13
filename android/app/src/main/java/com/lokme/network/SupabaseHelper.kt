@@ -11,6 +11,7 @@ import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.storage.upload
+import io.ktor.http.ContentType
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -84,7 +85,7 @@ object SupabaseClient {
         val bucket = getClient().storage.from("photos")
         val path = "$deviceId/$fileName"
         bucket.upload(path, data) {
-            contentType = "image/jpeg"
+            contentType = ContentType.Image.JPEG
         }
         return "${LokMeApp.SUPABASE_URL}/storage/v1/object/public/photos/$path"
     }
