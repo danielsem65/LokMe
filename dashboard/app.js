@@ -715,19 +715,31 @@ async function refreshNotifications() {
     <table>
       <thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead>
       <tbody>
-        ${allNotifs.slice(0, 200).map(n => `
+        ${allNotifs.slice(0, 200).map(n => {
+          const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
+          return `
           <tr>
             <td>${n.device_name}</td>
-            <td><strong>${n.app_name || n.app_package}</strong></td>
+            <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
             <td>${n.sender || '-'}</td>
-            <td style="max-width:400px;white-space:pre-wrap;word-break:break-word">${escapeHtml(n.message || '')}</td>
-            <td>${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
+            <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
+            <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
             <td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td>
           </tr>
-        `).join('')}
+          `;
+        }).join('')}
       </tbody>
     </table>
   `;
+}
+
+function getNotifBadgeClass(appName) {
+  if (!appName) return '';
+  const lower = appName.toLowerCase();
+  if (lower.includes('whatsapp')) return 'whatsapp';
+  if (lower.includes('message') || lower.includes('sms') || lower.includes('mms')) return 'sms';
+  if (lower.includes('telegram')) return 'telegram';
+  return '';
 }
 
 function escapeHtml(text) {
@@ -777,14 +789,17 @@ async function loadDeviceNotifications(deviceId) {
       <table>
         <thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead>
         <tbody>
-          ${notifs.slice(0, 50).map(n => `
+          ${notifs.slice(0, 50).map(n => {
+            const badgeClass = getNotifBadgeClass(n.app_name || n.app_package);
+            return `
             <tr>
-              <td><strong>${n.app_name || n.app_package}</strong></td>
+              <td><span class="notif-app-badge ${badgeClass}">${n.app_name || n.app_package}</span></td>
               <td>${n.sender || '-'}</td>
-              <td style="max-width:400px;white-space:pre-wrap;word-break:break-word">${escapeHtml(n.message || '')}</td>
-              <td>${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
+              <td><div class="notif-message">${escapeHtml(n.message || '')}</div></td>
+              <td style="white-space:nowrap">${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
             </tr>
-          `).join('')}
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
