@@ -18,7 +18,7 @@ class WsClient(
     private val onDisconnected: () -> Unit = {}
 ) {
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .pingInterval(30, TimeUnit.SECONDS)
         .build()
@@ -26,11 +26,15 @@ class WsClient(
     private var webSocket: WebSocket? = null
     private var retryCount = 0
     @Volatile private var isManualClose = false
+    @Volatile private var currentDeviceId = ""
 
     private val listener = object : WebSocketListener() {
         override fun onOpen(ws: WebSocket, response: Response) {
             Log.d("WS", "Connected")
             retryCount = 0
+            if (currentDeviceId.isNotEmpty()) {
+                sendRegistration(currentDeviceId)
+            }
             onConnected()
         }
 
@@ -64,14 +68,16 @@ class WsClient(
     }
 
     fun connect(deviceId: String) {
+        currentDeviceId = deviceId
         isManualClose = false
-        val request = Request.Builder().url(url).build()
-        webSocket = client.newWebSocket(request, listener)
-
-        Thread {
-            Thread.sleep(1000)
-            sendRegistration(deviceId)
-        }.start()
+        try {
+            val request = Request.Builder().url(url).build()
+            webSocket = client.newWebSocket(request, listener)
+            Log.d("WS", "Connecting to $url")
+        } catch (e: Exception) {
+            Log.e("WS", "Connect failed: ${e.message}")
+            scheduleReconnect()
+        }
     }
 
     fun sendRegistration(deviceId: String) {
@@ -111,7 +117,6 @@ class WsClient(
         val headerBytes = header.toString().toByteArray(Charsets.UTF_8)
         val headerLen = headerBytes.size
 
-        // Format: [2 bytes header length][header json][jpeg bytes]
         val buffer = ByteArray(2 + headerLen + jpegBytes.size)
         buffer[0] = (headerLen shr 8).toByte()
         buffer[1] = headerLen.toByte()
@@ -123,13 +128,20 @@ class WsClient(
 
     fun close() {
         isManualClose = true
-        webSocket?.close(1000, "Closing")
+        try { webSocket?.close(1000, "Closing") } catch (_: Exception) {}
     }
 
     private fun scheduleReconnect() {
-        val delay = (1000L * (retryCount + 1)).coerceAtMost(30_000L)
+        val delay = (2000L * (retryCount + 1)).coerceAtMost(60_000L)
         retryCount++
-        Log.d("WS", "Reconnecting in ${delay}ms")
-        Thread { Thread.sleep(delay); if (!isManualClose) connect("") }.start()
+        Log.d("WS", "Reconnecting in ${delay}ms (attempt $retryCount)")
+        Thread {
+            try {
+                Thread.sleep(delay)
+                if (!isManualClose && currentDeviceId.isNotEmpty()) {
+                    connect(currentDeviceId)
+                }
+            } catch (_: InterruptedException) {}
+        }.start()
     }
 }

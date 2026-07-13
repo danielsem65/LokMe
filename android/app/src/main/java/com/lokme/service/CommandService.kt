@@ -1,9 +1,12 @@
 package com.lokme.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -15,6 +18,8 @@ import com.lokme.network.SupabaseClient
 import com.lokme.network.WsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class CommandService : LifecycleService() {
@@ -22,8 +27,9 @@ class CommandService : LifecycleService() {
     private var wsClient: WsClient? = null
     private var executor: CommandExecutor? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var deviceId: String = ""
+    private var heartbeatThread: Thread? = null
 
     companion object {
         private const val TAG = "CommandService"
@@ -39,48 +45,77 @@ class CommandService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        deviceId = SupabaseClient.getDeviceId(this)
-        executor = CommandExecutor(this)
-        executor?.initCamera(this)
-        acquireWakeLock()
+        try {
+            ensureNotificationChannel()
+            deviceId = SupabaseClient.getDeviceId(this)
+            executor = CommandExecutor(this)
+            executor?.initCamera(this)
+            acquireWakeLock()
+            Log.d(TAG, "Service created, device: $deviceId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onCreate: ${e.message}", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        startForeground(1, buildNotification())
+        try {
+            startForeground(1, buildNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground: ${e.message}", e)
+        }
         connectWebSocket()
         return START_STICKY
     }
 
     private fun connectWebSocket() {
-        wsClient = WsClient(
-            url = LokMeApp.SERVER_URL,
-            onCommand = { commandType, commandId, payload ->
-                handleCommand(commandType, commandId, payload)
-            },
-            onConnected = {
-                Log.d(TAG, "WebSocket connected")
-                scope.launch {
+        try {
+            wsClient = WsClient(
+                url = LokMeApp.SERVER_URL,
+                onCommand = { commandType, commandId, payload ->
+                    handleCommand(commandType, commandId, payload)
+                },
+                onConnected = {
+                    Log.d(TAG, "WebSocket connected")
+                    scope.launch {
+                        try {
+                            SupabaseClient.registerDevice(
+                                this@CommandService,
+                                deviceName = Build.MODEL,
+                                deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
+                                androidVersion = "Android ${Build.VERSION.RELEASE}"
+                            )
+                            SupabaseClient.updateDeviceOnline(this@CommandService, true)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Online update failed: ${e.message}")
+                        }
+                    }
+                },
+                onDisconnected = {
+                    Log.d(TAG, "WebSocket disconnected")
+                }
+            )
+            wsClient?.connect(deviceId)
+            Log.d(TAG, "WebSocket connection initiated")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create WebSocket: ${e.message}", e)
+        }
+
+        heartbeatThread?.interrupt()
+        heartbeatThread = Thread {
+            try {
+                while (isRunning && !Thread.currentThread().isInterrupted) {
+                    Thread.sleep(60_000)
                     try {
-                        SupabaseClient.updateDeviceOnline(this@CommandService, true)
+                        wsClient?.sendHeartbeat(deviceId)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Online update failed", e)
+                        Log.e(TAG, "Heartbeat error: ${e.message}")
                     }
                 }
-            },
-            onDisconnected = {
-                Log.d(TAG, "WebSocket disconnected")
-            }
-        )
-        wsClient?.connect(deviceId)
-
-        // Heartbeat every 60s
-        Thread {
-            while (isRunning) {
-                Thread.sleep(60_000)
-                wsClient?.sendHeartbeat(deviceId)
-            }
-        }.start()
+            } catch (_: InterruptedException) { }
+        }
+        heartbeatThread?.isDaemon = true
+        heartbeatThread?.start()
     }
 
     private fun handleCommand(commandType: String, commandId: String, payload: String) {
@@ -88,29 +123,41 @@ class CommandService : LifecycleService() {
 
         val client = wsClient ?: return
 
-        executor?.execute(
-            commandType = commandType,
-            commandId = commandId,
-            payload = payload,
-            deviceId = deviceId,
-            wsClient = client,
-            onSuccess = { data ->
-                client.sendResponse(commandId, deviceId, commandType, true, data)
-                scope.launch {
+        try {
+            executor?.execute(
+                commandType = commandType,
+                commandId = commandId,
+                payload = payload,
+                deviceId = deviceId,
+                wsClient = client,
+                onSuccess = { data ->
                     try {
-                        SupabaseClient.updateCommandStatus(commandId, "completed")
-                    } catch (_: Exception) {}
-                }
-            },
-            onError = { error ->
-                client.sendResponse(commandId, deviceId, commandType, false, error)
-                scope.launch {
+                        client.sendResponse(commandId, deviceId, commandType, true, data)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "sendResponse error: ${e.message}")
+                    }
+                    scope.launch {
+                        try {
+                            SupabaseClient.updateCommandStatus(commandId, "completed")
+                        } catch (_: Exception) {}
+                    }
+                },
+                onError = { error ->
                     try {
-                        SupabaseClient.updateCommandStatus(commandId, "failed")
-                    } catch (_: Exception) {}
+                        client.sendResponse(commandId, deviceId, commandType, false, error)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "sendResponse error: ${e.message}")
+                    }
+                    scope.launch {
+                        try {
+                            SupabaseClient.updateCommandStatus(commandId, "failed")
+                        } catch (_: Exception) {}
+                    }
                 }
-            }
-        )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Command execution error: ${e.message}", e)
+        }
     }
 
     private fun buildNotification(): Notification {
@@ -130,20 +177,42 @@ class CommandService : LifecycleService() {
     }
 
     private fun acquireWakeLock() {
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "lokme:service")
-        wakeLock?.acquire(24 * 60 * 60 * 1000L)
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "lokme:service")
+            wakeLock?.acquire(24 * 60 * 60 * 1000L)
+        } catch (e: Exception) {
+            Log.e(TAG, "WakeLock error: ${e.message}")
+        }
+    }
+
+    private fun ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                LokMeApp.CHANNEL_ID,
+                "LokMe Service",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "LokMe monitoring service"
+                setShowBadge(false)
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
     }
 
     override fun onDestroy() {
         isRunning = false
-        wsClient?.close()
-        wakeLock?.let { if (it.isHeld) it.release() }
+        heartbeatThread?.interrupt()
+        heartbeatThread = null
+        try { wsClient?.close() } catch (_: Exception) {}
+        try { wakeLock?.let { if (it.isHeld) it.release() } } catch (_: Exception) {}
         scope.launch {
             try {
                 SupabaseClient.updateDeviceOnline(this@CommandService, false)
             } catch (_: Exception) {}
         }
+        scope.cancel()
         super.onDestroy()
     }
 }

