@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -12,7 +13,7 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('../dashboard'));
+app.use(express.static(path.join(__dirname, '..', 'dashboard')));
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -21,17 +22,58 @@ const supabase = createClient(
 
 // Connected devices: deviceId -> { ws, lastSeen }
 const connectedDevices = new Map();
+const dashboardClients = new Set();
+
+function broadcastToDashboard(data) {
+  const msg = JSON.stringify(data);
+  dashboardClients.forEach(ws => {
+    if (ws.readyState === 1) ws.send(msg);
+  });
+}
+
+function sendDeviceListToDashboard() {
+  const devices = Array.from(connectedDevices.keys());
+  broadcastToDashboard({ type: 'device_list', devices });
+}
+
+// Reset all devices to offline on startup
+(async () => {
+  try {
+    await supabase.from('devices').update({ is_online: false }).neq('id', '');
+    console.log('Reset all devices to offline on startup');
+  } catch (e) {
+    console.error('Failed to reset devices:', e.message);
+  }
+})();
 
 // WebSocket server
 wss.on('connection', (ws, req) => {
-  console.log('WebSocket connection established');
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isDashboard = url.searchParams.get('client') === 'dashboard';
 
+  if (isDashboard) {
+    dashboardClients.add(ws);
+    console.log('Dashboard client connected');
+
+    ws.send(JSON.stringify({
+      type: 'device_list',
+      devices: Array.from(connectedDevices.keys())
+    }));
+
+    ws.on('close', () => {
+      dashboardClients.delete(ws);
+      console.log('Dashboard client disconnected');
+    });
+    return;
+  }
+
+  console.log('Device WebSocket connection established');
   let deviceId = null;
 
   ws.on('message', async (data, isBinary) => {
     try {
       // Handle binary video frames
-      if (isBinary || Buffer.isBuffer(data)) {
+      if (isBinary) {
         const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
         if (buf.length > 2) {
           const headerLen = (buf[0] << 8) | buf[1];
@@ -41,15 +83,13 @@ wss.on('connection', (ws, req) => {
             const jpegData = buf.slice(2 + headerLen);
 
             if (header.type === 'video_frame' && header.device_id) {
-              // Relay to dashboard clients
-              const frameMsg = JSON.stringify({
-                type: 'video_frame',
-                device_id: header.device_id,
-                camera: header.camera || 'back'
-              });
-              // Send as text header + binary jpeg
               dashboardClients.forEach(dashWs => {
                 if (dashWs.readyState === 1) {
+                  const frameMsg = JSON.stringify({
+                    type: 'video_frame',
+                    device_id: header.device_id,
+                    camera: header.camera || 'back'
+                  });
                   dashWs.send(frameMsg);
                   dashWs.send(jpegData);
                 }
@@ -68,25 +108,23 @@ wss.on('connection', (ws, req) => {
           connectedDevices.set(deviceId, { ws, lastSeen: Date.now() });
           console.log(`Device registered: ${deviceId}`);
 
-          // Update device online status in Supabase
-          await supabase
-            .from('devices')
-            .upsert({
-              id: deviceId,
-              is_online: true,
-              last_seen: new Date().toISOString()
-            }, { onConflict: 'id' });
+          sendDeviceListToDashboard();
+
+          await supabase.from('devices').upsert({
+            id: deviceId,
+            is_online: true,
+            last_seen: new Date().toISOString()
+          }, { onConflict: 'id' });
           break;
 
         case 'response':
           console.log(`Response from ${msg.device_id}: ${msg.command_type} - ${msg.success}`);
-          // Update command status in Supabase
+
           await supabase
             .from('commands')
             .update({ status: msg.success ? 'completed' : 'failed' })
             .eq('id', msg.command_id);
 
-          // Forward response to dashboard via broadcast
           broadcastToDashboard({
             type: 'device_response',
             device_id: msg.device_id,
@@ -116,6 +154,7 @@ wss.on('connection', (ws, req) => {
     if (deviceId) {
       connectedDevices.delete(deviceId);
       console.log(`Device disconnected: ${deviceId}`);
+      sendDeviceListToDashboard();
       await supabase
         .from('devices')
         .update({ is_online: false })
@@ -124,38 +163,8 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// Dashboard WebSocket connections
-const dashboardClients = new Set();
-
-wss.on('connection', (ws, req) => {
-  // Check if this is a dashboard connection (query param)
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  if (url.searchParams.get('client') === 'dashboard') {
-    dashboardClients.add(ws);
-    console.log('Dashboard client connected');
-
-    // Send current device list
-    ws.send(JSON.stringify({
-      type: 'device_list',
-      devices: Array.from(connectedDevices.keys())
-    }));
-
-    ws.on('close', () => {
-      dashboardClients.delete(ws);
-    });
-  }
-});
-
-function broadcastToDashboard(data) {
-  const msg = JSON.stringify(data);
-  dashboardClients.forEach(ws => {
-    if (ws.readyState === 1) ws.send(msg);
-  });
-}
-
 // ===== REST API =====
 
-// Get all devices
 app.get('/api/devices', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -165,7 +174,6 @@ app.get('/api/devices', async (req, res) => {
 
     if (error) throw error;
 
-    // Merge online status from connected devices
     const devices = data.map(d => ({
       ...d,
       is_online: connectedDevices.has(d.id)
@@ -177,7 +185,6 @@ app.get('/api/devices', async (req, res) => {
   }
 });
 
-// Send command to device
 app.post('/api/command', async (req, res) => {
   try {
     const { device_id, command_type, payload } = req.body;
@@ -188,7 +195,6 @@ app.post('/api/command', async (req, res) => {
 
     const commandId = uuidv4();
 
-    // Save command to Supabase
     await supabase.from('commands').insert({
       id: commandId,
       device_id,
@@ -197,7 +203,6 @@ app.post('/api/command', async (req, res) => {
       status: 'pending'
     });
 
-    // Send to device via WebSocket
     const device = connectedDevices.get(device_id);
     if (device && device.ws.readyState === 1) {
       device.ws.send(JSON.stringify({
@@ -205,7 +210,6 @@ app.post('/api/command', async (req, res) => {
         command_id: commandId,
         payload: payload ? JSON.stringify(payload) : ''
       }));
-
       res.json({ command_id: commandId, status: 'sent' });
     } else {
       await supabase
@@ -219,7 +223,6 @@ app.post('/api/command', async (req, res) => {
   }
 });
 
-// Get command history
 app.get('/api/commands/:deviceId', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -236,7 +239,6 @@ app.get('/api/commands/:deviceId', async (req, res) => {
   }
 });
 
-// Get device locations
 app.get('/api/device/:deviceId/location', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -253,7 +255,6 @@ app.get('/api/device/:deviceId/location', async (req, res) => {
   }
 });
 
-// Get device call logs
 app.get('/api/device/:deviceId/calllogs', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -270,7 +271,6 @@ app.get('/api/device/:deviceId/calllogs', async (req, res) => {
   }
 });
 
-// Get device photos
 app.get('/api/device/:deviceId/photos', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -289,7 +289,6 @@ app.get('/api/device/:deviceId/photos', async (req, res) => {
 
 // ===== DELETE ENDPOINTS =====
 
-// Delete a photo (storage + db)
 app.delete('/api/photos/:photoId', async (req, res) => {
   try {
     const { data: photo, error: fetchErr } = await supabase
@@ -300,7 +299,6 @@ app.delete('/api/photos/:photoId', async (req, res) => {
 
     if (fetchErr) throw fetchErr;
 
-    // Extract storage path from URL
     const urlParts = photo.storage_url.split('/storage/v1/object/public/photos/');
     if (urlParts.length > 1) {
       await supabase.storage.from('photos').remove([urlParts[1]]);
@@ -313,7 +311,6 @@ app.delete('/api/photos/:photoId', async (req, res) => {
   }
 });
 
-// Delete all photos for a device
 app.delete('/api/device/:deviceId/photos', async (req, res) => {
   try {
     const { data: photos } = await supabase
@@ -339,7 +336,6 @@ app.delete('/api/device/:deviceId/photos', async (req, res) => {
   }
 });
 
-// Delete a call log entry
 app.delete('/api/calllogs/:logId', async (req, res) => {
   try {
     await supabase.from('call_logs').delete().eq('id', req.params.logId);
@@ -349,20 +345,15 @@ app.delete('/api/calllogs/:logId', async (req, res) => {
   }
 });
 
-// Delete all call logs for a device
 app.delete('/api/device/:deviceId/calllogs', async (req, res) => {
   try {
-    const { count } = await supabase
-      .from('call_logs')
-      .delete()
-      .eq('device_id', req.params.deviceId);
+    await supabase.from('call_logs').delete().eq('device_id', req.params.deviceId);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Delete all locations for a device
 app.delete('/api/device/:deviceId/locations', async (req, res) => {
   try {
     await supabase.from('locations').delete().eq('device_id', req.params.deviceId);
@@ -372,7 +363,6 @@ app.delete('/api/device/:deviceId/locations', async (req, res) => {
   }
 });
 
-// Delete all commands for a device
 app.delete('/api/device/:deviceId/commands', async (req, res) => {
   try {
     await supabase.from('commands').delete().eq('device_id', req.params.deviceId);
@@ -382,12 +372,10 @@ app.delete('/api/device/:deviceId/commands', async (req, res) => {
   }
 });
 
-// Delete a device and ALL its data
 app.delete('/api/device/:deviceId', async (req, res) => {
   try {
     const id = req.params.deviceId;
 
-    // Delete photos from storage first
     const { data: photos } = await supabase.from('photos').select('storage_url').eq('device_id', id);
     if (photos && photos.length > 0) {
       const paths = photos.map(p => {
@@ -397,7 +385,6 @@ app.delete('/api/device/:deviceId', async (req, res) => {
       if (paths.length > 0) await supabase.storage.from('photos').remove(paths);
     }
 
-    // Delete all related data
     await supabase.from('photos').delete().eq('device_id', id);
     await supabase.from('call_logs').delete().eq('device_id', id);
     await supabase.from('locations').delete().eq('device_id', id);
@@ -410,7 +397,6 @@ app.delete('/api/device/:deviceId', async (req, res) => {
   }
 });
 
-// Get storage usage stats
 app.get('/api/stats', async (req, res) => {
   try {
     const [devices, photos, callLogs, locations, commands] = await Promise.all([
@@ -433,7 +419,6 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -442,7 +427,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`LokMe server running on port ${PORT}`);

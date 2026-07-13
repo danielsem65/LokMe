@@ -1,6 +1,9 @@
 package com.lokme.camera
 
 import android.content.Context
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
@@ -90,68 +93,31 @@ class VideoStreamHelper(
 
     private fun imageProxyToJpeg(image: ImageProxy): ByteArray? {
         return try {
-            val buffer = image.planes[0].buffer
-            val bytes = ByteArray(buffer.remaining())
-            buffer.get(bytes)
-
-            // ImageProxy from ImageAnalysis gives YUV_420_888
-            // We need to convert to JPEG
-            val bitmap = android.graphics.Bitmap.createBitmap(
-                image.width, image.height,
-                android.graphics.Bitmap.Config.ARGB_8888
-            )
-
-            // Use YUV to RGB conversion
-            val yBuffer = image.planes[0].buffer
-            val uBuffer = image.planes[1].buffer
-            val vBuffer = image.planes[2].buffer
-
-            val ySize = yBuffer.remaining()
-            val uSize = uBuffer.remaining()
-            val vSize = vBuffer.remaining()
-
-            val yuvBytes = ByteArray(ySize + uSize + vSize)
-            yBuffer.get(yuvBytes, 0, ySize)
-            uBuffer.get(yuvBytes, ySize, uSize)
-            vBuffer.get(yuvBytes, ySize + uSize, vSize)
-
-            val argb = yuv420ToArgb(yuvBytes, image.width, image.height)
-            bitmap.setPixels(argb, 0, image.width, 0, 0, image.width, image.height)
-
-            val outputStream = ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 60, outputStream)
-            bitmap.recycle()
-
-            outputStream.toByteArray()
+            val nv21 = imageProxyToNv21(image)
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
+            val out = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 60, out)
+            out.toByteArray()
         } catch (e: Exception) {
             Log.e("VideoStream", "Frame conversion error: ${e.message}")
             null
         }
     }
 
-    private fun yuv420ToArgb(yuv: ByteArray, width: Int, height: Int): IntArray {
-        val argb = IntArray(width * height)
-        val frameSize = width * height
+    private fun imageProxyToNv21(image: ImageProxy): ByteArray {
+        val yBuffer = image.planes[0].buffer
+        val uBuffer = image.planes[1].buffer
+        val vBuffer = image.planes[2].buffer
 
-        for (j in 0 until height) {
-            for (i in 0 until width) {
-                val yp = j * width + i
-                val up = frameSize + (j / 2) * (width / 2) + (i / 2)
-                val vp = up + frameSize / 4
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
 
-                if (yp < yuv.size && up < yuv.size && vp < yuv.size) {
-                    val y = (yuv[yp].toInt() and 0xFF) - 16
-                    val u = (yuv[up].toInt() and 0xFF) - 128
-                    val v = (yuv[vp].toInt() and 0xFF) - 128
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
 
-                    val r = (1.164 * y + 1.596 * v).toInt().coerceIn(0, 255)
-                    val g = (1.164 * y - 0.813 * v - 0.391 * u).toInt().coerceIn(0, 255)
-                    val b = (1.164 * y + 2.018 * u).toInt().coerceIn(0, 255)
-
-                    argb[yp] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                }
-            }
-        }
-        return argb
+        return nv21
     }
 }

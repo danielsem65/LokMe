@@ -6,6 +6,7 @@ let selectedDevice = null;
 let map = null;
 let marker = null;
 let pendingVideoFrame = null;
+let onlineDeviceIds = new Set();
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -52,7 +53,7 @@ function connectWS() {
 
   ws.onopen = () => {
     document.getElementById('wsStatus').className = 'status-dot connected';
-    document.getElementById('wsLabel').textContent = 'Connected';
+    document.getElementById('wsLabel').textContent = 'Server Connected';
   };
 
   ws.onclose = () => {
@@ -84,6 +85,10 @@ function connectWS() {
     }
 
     const msg = JSON.parse(e.data);
+    if (msg.type === 'device_list') {
+      onlineDeviceIds = new Set(msg.devices);
+      refreshDevices();
+    }
     if (msg.type === 'device_response') handleDeviceResponse(msg);
     if (msg.type === 'video_frame') {
       pendingVideoFrame = true;
@@ -157,15 +162,17 @@ function renderDevices(devices) {
     return;
   }
 
-  container.innerHTML = devices.map(d => `
+  container.innerHTML = devices.map(d => {
+    const isOnline = onlineDeviceIds.has(d.id) || d.is_online;
+    return `
     <div class="device-card" onclick="selectDevice('${d.id}')">
       <h3>${d.device_name || 'Unknown Device'}</h3>
       <div class="meta">${d.device_model || ''} | ${d.android_version || ''}</div>
       <div class="meta">ID: ${d.id.substring(0, 12)}...</div>
       <div class="meta">Last seen: ${d.last_seen ? new Date(d.last_seen).toLocaleString() : 'Never'}</div>
-      <span class="online-badge ${d.is_online ? 'online' : 'offline'}">${d.is_online ? 'Online' : 'Offline'}</span>
+      <span class="online-badge ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span>
     </div>
-  `).join('');
+  `}).join('');
 }
 
 function selectDevice(deviceId) {
