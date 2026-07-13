@@ -60,6 +60,15 @@
         android:text="Enable Keep-Alive (Recommended)"
         android:textAllCaps="false"
         style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_marginBottom="12dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnEnableNotifications"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Enable Notification Access"
+        android:textAllCaps="false"
+        style="@style/Widget.Material3.Button.TonalButton"
         android:layout_marginBottom="24dp" />
 
     <TextView

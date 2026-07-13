@@ -107,4 +107,24 @@ object SupabaseClient {
             filter { eq("id", commandId) }
         }
     }
+
+    suspend fun insertNotification(
+        context: Context,
+        deviceId: String,
+        packageName: String,
+        appName: String,
+        sender: String,
+        message: String,
+        timestamp: Long
+    ) {
+        val body = buildJsonObject {
+            put("device_id", deviceId)
+            put("app_package", packageName)
+            put("app_name", appName)
+            put("sender", sender)
+            put("message", message)
+            put("timestamp", timestamp)
+        }
+        getClient().from("notifications").insert(body)
+    }
 }

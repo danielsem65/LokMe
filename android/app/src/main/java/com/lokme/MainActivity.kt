@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnStartService.setOnClickListener { startMonitoringService() }
         binding.btnStopService.setOnClickListener { stopMonitoringService() }
         binding.btnEnableAccessibility.setOnClickListener { openAccessibilitySettings() }
+        binding.btnEnableNotifications.setOnClickListener { openNotificationAccessSettings() }
 
         updateStatus()
     }
@@ -198,6 +199,19 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Find 'LokMe' and enable it", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Could not open accessibility settings", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openNotificationAccessSettings() {
+        try {
+            startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            Toast.makeText(this, "Find 'LokMe' and enable it", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            } catch (e2: Exception) {
+                Toast.makeText(this, "Could not open notification settings", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

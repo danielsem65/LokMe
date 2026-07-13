@@ -128,6 +128,10 @@ class WsClient(
         sendBinary(header, pcmBytes)
     }
 
+    fun sendText(text: String) {
+        webSocket?.send(text)
+    }
+
     private fun sendBinary(header: JSONObject, data: ByteArray) {
         val headerBytes = header.toString().toByteArray(Charsets.UTF_8)
         val headerLen = headerBytes.size
