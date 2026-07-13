@@ -20,9 +20,10 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-// Connected devices: deviceId -> { ws, lastSeen }
 const connectedDevices = new Map();
 const dashboardClients = new Set();
+const offlineTimers = new Map();
+const OFFLINE_GRACE_MS = 2 * 60 * 1000;
 
 function broadcastToDashboard(data) {
   const msg = JSON.stringify(data);
@@ -36,7 +37,29 @@ function sendDeviceListToDashboard() {
   broadcastToDashboard({ type: 'device_list', devices });
 }
 
-// Reset all devices to offline on startup
+function scheduleOffline(deviceId) {
+  if (offlineTimers.has(deviceId)) return;
+  const timer = setTimeout(async () => {
+    offlineTimers.delete(deviceId);
+    if (!connectedDevices.has(deviceId)) {
+      try {
+        await supabase.from('devices').update({ is_online: false }).eq('id', deviceId);
+      } catch (e) {
+        console.error('Failed to mark offline:', e.message);
+      }
+      sendDeviceListToDashboard();
+    }
+  }, OFFLINE_GRACE_MS);
+  offlineTimers.set(deviceId, timer);
+}
+
+function cancelOffline(deviceId) {
+  if (offlineTimers.has(deviceId)) {
+    clearTimeout(offlineTimers.get(deviceId));
+    offlineTimers.delete(deviceId);
+  }
+}
+
 (async () => {
   try {
     await supabase.from('devices').update({ is_online: false }).neq('id', '');
@@ -44,9 +67,19 @@ function sendDeviceListToDashboard() {
   } catch (e) {
     console.error('Failed to reset devices:', e.message);
   }
+
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const exists = buckets?.some(b => b.name === 'photos');
+    if (!exists) {
+      await supabase.storage.createBucket('photos', { public: true });
+      console.log('Created "photos" storage bucket');
+    }
+  } catch (e) {
+    console.error('Bucket check/create error:', e.message);
+  }
 })();
 
-// WebSocket server
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const isDashboard = url.searchParams.get('client') === 'dashboard';
@@ -72,7 +105,6 @@ wss.on('connection', (ws, req) => {
 
   ws.on('message', async (data, isBinary) => {
     try {
-      // Handle binary video frames
       if (isBinary) {
         const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
         if (buf.length > 2) {
@@ -106,6 +138,7 @@ wss.on('connection', (ws, req) => {
         case 'register':
           deviceId = msg.device_id;
           connectedDevices.set(deviceId, { ws, lastSeen: Date.now() });
+          cancelOffline(deviceId);
           console.log(`Device registered: ${deviceId}`);
 
           sendDeviceListToDashboard();
@@ -139,6 +172,7 @@ wss.on('connection', (ws, req) => {
           if (connectedDevices.has(msg.device_id)) {
             connectedDevices.get(msg.device_id).lastSeen = Date.now();
           }
+          cancelOffline(msg.device_id);
           await supabase
             .from('devices')
             .update({ last_seen: new Date().toISOString() })
@@ -155,10 +189,7 @@ wss.on('connection', (ws, req) => {
       connectedDevices.delete(deviceId);
       console.log(`Device disconnected: ${deviceId}`);
       sendDeviceListToDashboard();
-      await supabase
-        .from('devices')
-        .update({ is_online: false })
-        .eq('id', deviceId);
+      scheduleOffline(deviceId);
     }
   });
 });
@@ -425,6 +456,19 @@ app.get('/api/health', (req, res) => {
     connected_devices: connectedDevices.size,
     dashboard_clients: dashboardClients.size
   });
+});
+
+app.post('/api/setup', async (req, res) => {
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const exists = buckets?.some(b => b.name === 'photos');
+    if (!exists) {
+      await supabase.storage.createBucket('photos', { public: true });
+    }
+    res.json({ success: true, bucket_created: !exists });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

@@ -83,7 +83,9 @@ object SupabaseClient {
     suspend fun uploadPhoto(deviceId: String, fileName: String, data: ByteArray): String {
         val bucket = getClient().storage.from("photos")
         val path = "$deviceId/$fileName"
-        bucket.upload(path, data)
+        bucket.upload(path, data) {
+            contentType = "image/jpeg"
+        }
         return "${LokMeApp.SUPABASE_URL}/storage/v1/object/public/photos/$path"
     }
 

@@ -88,6 +88,10 @@ ON CONFLICT (id) DO NOTHING;
 CREATE POLICY "Public read access" ON storage.objects
   FOR SELECT USING (bucket_id = 'photos');
 
--- Storage policy: allow insert from service role
+-- Storage policy: allow insert from anon and service role
 CREATE POLICY "Allow insert" ON storage.objects
   FOR INSERT WITH CHECK (bucket_id = 'photos');
+
+-- Storage policy: allow delete from anon and service role
+CREATE POLICY "Allow delete" ON storage.objects
+  FOR DELETE USING (bucket_id = 'photos');

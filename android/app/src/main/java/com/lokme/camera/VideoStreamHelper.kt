@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
@@ -25,20 +27,27 @@ class VideoStreamHelper(
     private var cameraProvider: ProcessCameraProvider? = null
     private val isStreaming = AtomicBoolean(false)
     private val analysisExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var currentCameraType = "back"
 
     fun initialize() {
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({
-            cameraProvider = future.get()
-        }, ContextCompat.getMainExecutor(context))
-        future.get()
+        mainHandler.post {
+            try {
+                val future = ProcessCameraProvider.getInstance(context)
+                future.addListener({
+                    cameraProvider = future.get()
+                }, ContextCompat.getMainExecutor(context))
+            } catch (e: Exception) {
+                Log.e("VideoStream", "Init error: ${e.message}")
+            }
+        }
     }
 
     fun startStream(wsClient: WsClient, deviceId: String, useFrontCamera: Boolean) {
         if (isStreaming.get()) return
 
-        val provider = cameraProvider ?: run {
+        val provider = cameraProvider
+        if (provider == null) {
             Log.e("VideoStream", "Camera provider not initialized")
             return
         }
@@ -71,21 +80,25 @@ class VideoStreamHelper(
             )
             .build()
 
-        try {
-            provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, selector, imageAnalysis)
-            isStreaming.set(true)
-            Log.d("VideoStream", "Started streaming from $currentCameraType camera")
-        } catch (e: Exception) {
-            Log.e("VideoStream", "Failed to start stream", e)
+        mainHandler.post {
+            try {
+                provider.unbindAll()
+                provider.bindToLifecycle(lifecycleOwner, selector, imageAnalysis)
+                isStreaming.set(true)
+                Log.d("VideoStream", "Started streaming from $currentCameraType camera")
+            } catch (e: Exception) {
+                Log.e("VideoStream", "Failed to start stream", e)
+            }
         }
     }
 
     fun stopStream() {
         isStreaming.set(false)
-        try {
-            cameraProvider?.unbindAll()
-        } catch (_: Exception) {}
+        mainHandler.post {
+            try {
+                cameraProvider?.unbindAll()
+            } catch (_: Exception) {}
+        }
         Log.d("VideoStream", "Stream stopped")
     }
 
