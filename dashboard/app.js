@@ -5,6 +5,9 @@ let ws = null;
 let selectedDevice = null;
 let map = null;
 let marker = null;
+let satelliteLayer = null;
+let darkLayer = null;
+let useSatellite = false;
 let pendingVideoFrame = null;
 let pendingAudioFrame = null;
 let onlineDeviceIds = new Set();
@@ -378,7 +381,7 @@ function selectDevice(deviceId) {
   document.getElementById('deviceList').parentElement.querySelector('.section-header').classList.add('hidden');
   document.getElementById('deviceList').classList.add('hidden');
   document.getElementById('deviceDetail').classList.remove('hidden');
-  document.getElementById('detailTitle').textContent = `Device: ${deviceId.substring(0, 12)}...`;
+  document.getElementById('detailTitle').innerHTML = `<span id="detailName">${deviceId.substring(0, 12)}...</span> <button class="btn btn-glass btn-sm" onclick="editDeviceName()" style="font-size:11px;vertical-align:middle">&#9998; Rename</button>`;
   document.getElementById('detailSub').textContent = onlineDeviceIds.has(deviceId) ? 'Online' : 'Offline';
   loadCommandHistory(deviceId);
   loadDeviceLocation(deviceId);
@@ -386,6 +389,31 @@ function selectDevice(deviceId) {
   loadDeviceLocations(deviceId);
   loadDeviceNotifications(deviceId);
   closeSidebar();
+  // fetch actual name
+  fetch(`${API_BASE}/api/devices`).then(r=>r.json()).then(devices=>{
+    const d = devices.find(x => x.id === deviceId);
+    if (d && d.device_name) document.getElementById('detailName').textContent = d.device_name;
+  }).catch(()=>{});
+}
+
+function editDeviceName() {
+  const current = document.getElementById('detailName').textContent;
+  const name = prompt('Enter device name:', current);
+  if (!name || name.trim().length === 0) return;
+  fetch(`${API_BASE}/api/device/${selectedDevice}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_name: name.trim() })
+  }).then(r => {
+    if (!r.ok) throw new Error();
+    document.getElementById('detailName').textContent = name.trim();
+    refreshDevices();
+    refreshAllCommands();
+    refreshNotifications();
+    refreshPhotos();
+    refreshCallLogs();
+    showToast('Device name updated');
+  }).catch(() => showToast('Failed to update name', true));
 }
 function showDeviceList() {
   selectedDevice = null;
@@ -468,10 +496,26 @@ async function refreshAllCommands() {
 // ===== Map =====
 function initMap() {
   map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     maxZoom: 19
   }).addTo(map);
+  satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    maxZoom: 19
+  });
+}
+
+function toggleMapLayer() {
+  useSatellite = !useSatellite;
+  if (useSatellite) {
+    map.removeLayer(darkLayer);
+    map.addLayer(satelliteLayer);
+  } else {
+    map.removeLayer(satelliteLayer);
+    map.addLayer(darkLayer);
+  }
+  document.getElementById('mapToggleBtn').textContent = useSatellite ? 'Dark' : 'Satellite';
 }
 
 async function loadDeviceLocation(deviceId) {

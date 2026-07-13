@@ -255,6 +255,21 @@ app.get('/api/devices', async (req, res) => {
   }
 });
 
+app.patch('/api/device/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { device_name } = req.body;
+    if (!device_name || device_name.trim().length === 0) {
+      return res.status(400).json({ error: 'device_name required' });
+    }
+    const { error } = await supabase.from('devices').update({ device_name: device_name.trim() }).eq('id', id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/command', async (req, res) => {
   try {
     const { device_id, command_type, payload } = req.body;
